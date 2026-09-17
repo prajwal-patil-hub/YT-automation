@@ -1,0 +1,42 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+client_secret*.json
+*token*.json
+credentials.json
+
+# Media & model artifacts
+assets/
+stock/
+models/
+renders/
+out/
+*.mp4
+*.mkv
+*.mov
+*.wav
+*.mp3
+*.safetensors
+*.gguf
+*.ckpt
+
+# Local state
+*.sqlite
+*.sqlite3
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
