@@ -1,0 +1,25 @@
+{
+  "title": "The Field of Kurukshetra — Part One: The Night Before",
+  "description": "The opening of the Mahabharata's great war, told slowly, for sleep.",
+  "sources": ["Vyasa, Mahabharata, Bhishma Parva"],
+  "beats": [
+    {"narration": "Let your shoulders drop. We are going to walk very slowly into an old story. There is no hurry in it. It has waited a long time already.",
+     "visual": {"kind": "scene", "preset": "mythology", "title": "The Field of Kurukshetra", "subtitle": "Part one — the night before"}},
+    {"narration": "The field is called Kurukshetra. It is flat, and wide, and dry. By day it is the colour of pale straw. By night it holds the cold the way a stone holds it.",
+     "visual": {"kind": "scene", "preset": "mythology"}},
+    {"narration": "Two armies have come to this field. They have been arriving for many days. Tents, and horses, and carts, and quiet men who are trying not to think about the morning.",
+     "visual": {"kind": "scene", "preset": "dusk"}},
+    {"narration": "They are cousins. That is the part that is hard to hold in the mind. The men on one side of the field grew up with the men on the other.",
+     "visual": {"kind": "scene", "preset": "dusk", "title": "They are cousins"}},
+    {"narration": "They learned from the same teacher. They ate in the same hall. Some of them love each other still, and will not say so, because it is too late for saying.",
+     "visual": {"kind": "scene", "preset": "temple"}},
+    {"narration": "In the dark, the fires burn low. Someone is mending a strap. Someone else is asleep already, which is its own kind of courage.",
+     "visual": {"kind": "scene", "preset": "temple"}},
+    {"narration": "And somewhere near the centre, a man named Arjuna is awake. He is the finest archer anyone has ever seen. Tomorrow he will not want to lift his bow.",
+     "visual": {"kind": "scene", "preset": "mythology", "title": "Arjuna, awake"}},
+    {"narration": "But that is tomorrow. Tonight the field is only a field, and the sky above it is very large, and very old, and entirely indifferent to all of them.",
+     "visual": {"kind": "scene", "preset": "space"}},
+    {"narration": "We will stop there. Nothing has happened yet. Nothing needs to happen yet. Sleep well.",
+     "visual": {"kind": "scene", "preset": "space"}}
+  ]
+}

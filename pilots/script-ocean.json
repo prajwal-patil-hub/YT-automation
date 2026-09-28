@@ -1,0 +1,25 @@
+{
+  "title": "Descending — The First Thousand Metres",
+  "description": "A slow descent through the ocean's upper layers. Told slowly, for sleep.",
+  "sources": ["NOAA Ocean Exploration"],
+  "beats": [
+    {"narration": "We are going to go down. Slowly. Not far, by the ocean's standards. Only the first thousand metres. You do not need to do anything.",
+     "visual": {"kind": "scene", "preset": "ocean", "title": "Descending", "subtitle": "The first thousand metres"}},
+    {"narration": "At the surface the water is bright, and warm, and busy. Light goes everywhere. Almost everything that lives in the sea lives in this thin, lit layer.",
+     "visual": {"kind": "scene", "preset": "ocean"}},
+    {"narration": "At ten metres, the red has already gone. Red is the first colour the water takes. Blood down here is not red. It is a soft, unremarkable green.",
+     "visual": {"kind": "scene", "preset": "ocean", "title": "Ten metres"}},
+    {"narration": "At fifty, the orange has gone too. Then the yellow. The world narrows towards blue, and keeps narrowing, and nothing announces it.",
+     "visual": {"kind": "scene", "preset": "ocean"}},
+    {"narration": "At two hundred metres we pass out of the sunlit zone. Below this, there is not enough light for a plant to live. Nothing green grows past here. Not anywhere. Not ever.",
+     "visual": {"kind": "scene", "preset": "forest", "title": "Two hundred metres"}},
+    {"narration": "This next part is called the twilight zone. It goes down to a thousand metres. There is light here, but only just, and it is all one colour.",
+     "visual": {"kind": "scene", "preset": "space"}},
+    {"narration": "Things here are mostly small, and mostly patient. Many of them make their own light. Not to see by. To signal, or to hide, or for reasons we have not worked out.",
+     "visual": {"kind": "scene", "preset": "space"}},
+    {"narration": "At a thousand metres the last of the sunlight gives up. Below is four more kilometres of water that has never once been lit from above.",
+     "visual": {"kind": "scene", "preset": "space", "title": "A thousand metres"}},
+    {"narration": "We will stop here, on the edge of it, floating. Nothing below us is in a hurry either. Sleep well.",
+     "visual": {"kind": "scene", "preset": "space"}}
+  ]
+}

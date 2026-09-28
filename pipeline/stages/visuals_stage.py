@@ -35,6 +35,7 @@ def run(ctx) -> None:
         name = mapping.get(kind, "colour")
         out = vis_dir / f"beat-{beat.index:03d}.png"
         beat_ctx = {
+            "beat_index": beat.index,
             "narration": beat.narration,
             "fallback_title": ctx.script.title,
             "used_paths": used_paths,

@@ -32,12 +32,37 @@ def _segment(ctx, beat, out: Path) -> Path:
     src = Path(beat.visual_path)
     is_video = ctx.media_kinds.get(beat.index) == "video" or src.suffix.lower() in VIDEO_EXT
 
-    # Scale to fit, pad to exact frame — never distort the source aspect.
-    vf = (
-        f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
-        f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,"
-        f"fps={fps},format=yuv420p"
-    )
+    # Motion: a still frame held for a minute is dead on screen, and calm
+    # long-form content needs movement slow enough not to demand attention.
+    motion = (beat.visual.spec.get("motion")
+              or ctx.cfg.get("video.motion", "none"))
+    rate = float(beat.visual.spec.get("motion_rate")
+                 or ctx.cfg.get("video.motion_rate", 0.16))
+
+    fit = (f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+           f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black")
+
+    if is_video or motion == "none":
+        vf = f"{fit},fps={fps},format=yuv420p"
+    elif motion == "zoom":
+        # Upscale first: zoompan jitters badly at native resolution.
+        frames = max(int(duration * fps), 1)
+        vf = (
+            f"scale={w * 3}:{h * 3},"
+            f"zoompan=z='min(1+{rate * 0.002:.6f}*on,1.14)':d={frames}"
+            f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps={fps},"
+            f"format=yuv420p"
+        )
+    else:  # "drift" — a crop-window pan. Smooth, and cheaper than zoompan.
+        over_w, over_h = int(w * 1.2), int(h * 1.2)
+        vf = (
+            f"scale={over_w}:{over_h},"
+            f"crop={w}:{h}"
+            f":x='(in_w-out_w)*(0.5+0.5*sin(t*{rate:.4f}))'"
+            f":y='(in_h-out_h)*(0.5+0.35*sin(t*{rate * 0.61:.4f}))',"
+            f"fps={fps},format=yuv420p"
+        )
+
     if is_video:
         args = ["-y", "-stream_loop", "-1", "-i", str(src), "-t", f"{duration:.3f}"]
     else:

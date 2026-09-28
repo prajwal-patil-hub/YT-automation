@@ -83,3 +83,80 @@ winning strategy. Lower cadence starves the algorithm.
 
 At 1–3/week, an overnight batch render is perfectly acceptable — which is what makes
 even slow local generation viable later.
+
+---
+
+## Addendum — the chosen direction (2026-09-28)
+
+The owner named three channel ideas: kids storytelling, Mahabharata episodes with
+animated figures, and calm/sleep "explained" video. Research on all three, and the
+decision taken:
+
+### Kids storytelling — economics are structurally bad
+
+The **Made for Kids** flag is a revenue cut, not a label:
+
+- **RPM $0.50–$3**, versus $3–15 general audience — **50–80% less**. COPPA forbids
+  personalized ads, so only contextual ads run.
+- Also lost: Super Thanks, channel memberships, end screens, cards, **comments**,
+  and the notification bell. No community, no funnel, no upsell.
+- Enforcement is *stricter* for kids content; "Made-for-Kids AI storylines with no
+  editorial voice are harder to defend."
+
+Consensus recommendation for AI kids content in 2026 is to build revenue on **brand
+deals, licensing (Netflix / Amazon Kids+), or off-platform subscriptions** — not the
+Partner Program. That is a different business from the one this repo is designed for.
+
+**Verdict: not first. If pursued, pursue as a licensing play.**
+
+### Mahabharata — strong niche, one precedent worth heeding
+
+In January 2026 YouTube removed 16 channels from YPP — **4.7 billion views,
+$10M/year**. One was **Imperiodejesus (5.87M subs): serialized AI-narrated biblical
+stories, multiple episodes daily.**
+
+That is structurally what "Mahabharata episodes with animated figures" describes.
+The channel was not removed for being religious or AI-made; it was removed because
+AI handled every step with zero human editorial input. Survivable — but only at low
+cadence with real originality. **It is not a volume play.**
+
+Also note: faceless channels went from **12% to 38%** of new monetization ventures
+since 2022, so this is a late entry; and sources **disagree sharply** on Indian
+devotional CPM (₹150–350 in one, ₹40–80 in another). Do not plan on a number.
+
+### Sleep / calm long-form — best economics of the three
+
+| | |
+|---|---|
+| Sleep/healing soundscape RPM | **$10.92** |
+| Wellness / sleep-app / supplement CPM | **$16–20** |
+| Format | 1–8 hours, enormous watch time per viewer |
+| Production cost | Low — ambient audio, simple visuals |
+
+Roughly 4–20× the kids RPM, no character-consistency problem, and the lowest visual
+demand of any format considered. Caveat: sources note sleep channels should
+**compose original audio**; library music may cap the ceiling.
+
+### Decision: merge sleep + Mahabharata
+
+One pipeline: **calm, slow, long-form mythology, told sleep-paced.** This takes the
+high-RPM, high-retention mythology audience while the sleep framing supplies the
+differentiation that separates it from the Imperiodejesus pattern. Low cadence is a
+feature of the format rather than a compliance compromise.
+
+### Animation: rigged puppets, not generated video
+
+For "animated figures", the 2026 AI-consistency stack is LoRA 0.6 + PuLID 0.8 +
+ControlNet OpenPose — a GPU, ComfyUI, and characters that still drift between shots.
+
+**Rigged 2D puppets solve consistency by construction instead.** Open-source, MIT
+options: **Iki** (WebGL/TypeScript, layered PNGs wired to parameters, ships an MCP
+server so an agent can build the rig), plus Inochi Creator, nijigenerate and
+Ayatsuri 2D.
+
+Why it fits a serialized mythology channel: Krishna is identical in episode 40 and
+episode 1 because it is the same rig; lip-sync drives off TTS timings the pipeline
+already produces; it is not photorealistic so **no disclosure flag**; it renders on
+CPU; and each character is built once and amortised across every episode.
+
+**Status: researched, not built. The `scene` provider ships first; `puppet` follows.**

@@ -1,0 +1,44 @@
+# Pilot: ordinary — calm, sleep-paced long-form.
+[channel]
+name = "Pilot"
+tags = ["sleep", "calm", "longform"]
+category_id = "27"
+made_for_kids = false
+
+[script]
+provider = "file"
+
+[voice]
+provider     = "espeak"      # placeholder voice — Kokoro is the real one
+espeak_voice = "en-us"
+espeak_wpm   = 122          # slower than conversational
+beat_gap     = 1.5           # long pauses are the whole point
+
+[video]
+width       = 1920
+height      = 1080
+fps         = 30
+crf         = 21
+preset      = "veryfast"
+motion      = "drift"
+motion_rate = 0.055          # very slow — movement you notice only if you look
+
+[captions]
+# Deliberately off. Burned-in karaoke text demands reading, which is the
+# opposite of what sleep content is for. The .srt track is still written.
+burn_in = false
+
+[visuals]
+preset = "archive"
+
+[theme]
+ink   = "#D9DEE4"
+ink_2 = "#8D97A2"
+
+[review]
+make_proxy = true
+
+[paths]
+work_dir  = "work/pilot-ordinary"
+stock_dir = "stock"
+db        = "work/pilot-ordinary/yta.sqlite3"

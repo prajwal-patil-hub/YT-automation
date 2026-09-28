@@ -1,0 +1,25 @@
+{
+  "title": "The Shipping Container — A Very Boring Miracle",
+  "description": "How a plain steel box quietly rearranged the world. Told slowly, for sleep.",
+  "sources": ["Levinson, The Box"],
+  "beats": [
+    {"narration": "Tonight we are going to think about a steel box. That is all it is. A box. If you are still awake at the end of this, I will be surprised.",
+     "visual": {"kind": "scene", "preset": "archive", "title": "The Shipping Container", "subtitle": "A very boring miracle"}},
+    {"narration": "It is about forty feet long, and eight feet wide, and eight and a half feet tall. It is corrugated, so that it does not buckle. It is usually a faded red, or a faded blue.",
+     "visual": {"kind": "scene", "preset": "archive"}},
+    {"narration": "Before the box, loading a ship was slow work. Men carried things aboard, piece by piece. Sacks. Barrels. Crates of odd shapes. It could take a week to fill a hold.",
+     "visual": {"kind": "scene", "preset": "archive"}},
+    {"narration": "A ship in port earns nothing. It only earns at sea. So a week in port was a week of quiet loss, every time, for every ship, everywhere.",
+     "visual": {"kind": "scene", "preset": "dusk", "title": "A ship in port earns nothing"}},
+    {"narration": "Then someone thought: what if the shape never changed. What if everything went into the same box, and the box went onto the ship, and nobody ever touched what was inside.",
+     "visual": {"kind": "scene", "preset": "dusk"}},
+    {"narration": "That is the whole idea. It is not clever. It is barely an idea at all. And it took decades of argument to make it ordinary.",
+     "visual": {"kind": "scene", "preset": "archive"}},
+    {"narration": "But once it was ordinary, a ship could be emptied and filled in hours. And the cost of moving a thing across an ocean fell so far that it stopped being part of the calculation.",
+     "visual": {"kind": "scene", "preset": "ocean"}},
+    {"narration": "Almost everything near you tonight sat in one of those boxes. The chair. The cup. The wire behind the wall. None of it thinks about the box, and neither do you.",
+     "visual": {"kind": "scene", "preset": "archive", "title": "Almost everything near you"}},
+    {"narration": "A plain steel box, stacked in the dark, on water, going somewhere. That is all. Sleep well.",
+     "visual": {"kind": "scene", "preset": "ocean"}}
+  ]
+}

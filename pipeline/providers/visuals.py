@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from . import ProviderUnavailable, RenderedVisual, register_visual
-from ..render import cards
+from ..render import cards, scenes
 from ..render.theme import Theme
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
@@ -193,6 +193,40 @@ class StockVisual(_CardBase):
         )
 
 
+@register_visual("scene")
+class SceneVisual(_CardBase):
+    """Ambient scene grounds for calm, long-form narration.
+
+    Procedurally generated, so: deterministic from a seed, endlessly varied
+    across videos, no GPU, and not photorealistic — which keeps the disclosure
+    flag off. Text is optional and most sleep-paced beats carry none.
+    """
+    name = "scene"
+    kinds = ("scene", "ambient", "mood")
+
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.default_preset = cfg.get("visuals.preset", "mythology")
+
+    def render(self, intent, out_path: Path, ctx: dict[str, Any]) -> RenderedVisual:
+        spec = intent.spec
+        # Seed from the beat so a given beat always renders the same ground,
+        # but no two beats share one.
+        seed = int(spec.get("seed", (ctx.get("beat_index", 0) * 7919) + 13))
+        scenes.scene_card(
+            out_path, self.size, self.theme,
+            preset=spec.get("preset", self.default_preset),
+            seed=seed,
+            title=spec.get("title"),
+            subtitle=spec.get("subtitle"),
+            align=spec.get("align", "centre"),
+        )
+        return RenderedVisual(
+            path=out_path, provider=self.name, kind="scene",
+            license="original", generated=False, photorealistic=False,
+        )
+
+
 @register_visual("colour")
 class ColourVisual(_CardBase):
     """Fallback. Never fails, so one bad intent cannot lose a whole render."""
@@ -215,7 +249,7 @@ class ColourVisual(_CardBase):
 # Intent kind -> provider name. Built once from each provider's declared kinds.
 def kind_map() -> dict[str, str]:
     mapping: dict[str, str] = {}
-    for cls in (CardVisual, ChartVisual, StockVisual, ColourVisual):
+    for cls in (CardVisual, ChartVisual, SceneVisual, StockVisual, ColourVisual):
         for kind in cls.kinds:
             mapping[kind] = cls.name
     return mapping
