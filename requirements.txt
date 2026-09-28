@@ -1,0 +1,16 @@
+# Core pipeline. Deliberately tiny — everything else is stdlib.
+Pillow>=10.0
+
+# --- optional, per provider -------------------------------------------------
+# Voice (recommended default: Kokoro, Apache-2.0, CPU, faster than realtime)
+#   pip install kokoro soundfile
+#
+# Captions by forced alignment, the upgrade over estimated timing:
+#   pip install faster-whisper        # MIT
+#   pip install whisperx              # BSD-2-Clause (skip diarization: one narrator)
+#
+# Review gate:
+#   pip install python-telegram-bot
+#
+# Publishing:
+#   pip install google-api-python-client google-auth-oauthlib

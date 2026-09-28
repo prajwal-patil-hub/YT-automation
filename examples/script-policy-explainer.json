@@ -1,0 +1,51 @@
+{
+  "title": "The Policy Change That Killed AI YouTube Automation",
+  "description": "In July 2025 YouTube renamed one policy and quietly invalidated most of the AI automation advice on the internet. Here is what actually changed, and what still works.",
+  "sources": [
+    "https://techcrunch.com/2026/07/20/youtube-clarifies-policies-around-ai-slop-and-upsetting-videos/",
+    "https://support.google.com/youtube/answer/1311392",
+    "https://thenextweb.com/news/youtube-ai-slop-crackdown-faceless-creators-collateral-damage"
+  ],
+  "beats": [
+    {
+      "narration": "On the fifteenth of July, 2025, YouTube renamed a policy. That sounds like nothing. It was not nothing.",
+      "visual": {"kind": "title", "title": "The Policy Change", "kicker": "Explainer", "subtitle": "How one rename invalidated an entire genre of advice"}
+    },
+    {
+      "narration": "The old policy was called repetitious content. The new one is called inauthentic content. And the scope got considerably wider.",
+      "visual": {"kind": "card", "title": "Repetitious → Inauthentic", "kicker": "15 July 2025"}
+    },
+    {
+      "narration": "Under the new rules, three categories of video cannot be monetized. They are worth reading carefully, because most automation tutorials describe how to make the first one.",
+      "visual": {"kind": "bullets", "kicker": "Cannot be monetized", "heading": "Three categories of inauthentic content", "bullets": ["Generic, repetitive or template-based content", "Off-putting or distressing content", "AI personas used to discuss topics"]}
+    },
+    {
+      "narration": "Notice what is not on that list. AI is not banned. Faceless channels are not banned. What is targeted is content produced at scale with no real human input.",
+      "visual": {"kind": "card", "title": "AI is not the problem", "kicker": "What the rule measures", "subtitle": "Mass production without human input is"}
+    },
+    {
+      "narration": "That distinction has teeth. Reporting through 2026 documents human creators being caught in the enforcement simply because they never showed their face.",
+      "visual": {"kind": "quote", "quote": "The people who do the same content as me without their face in it, most of them are getting demonetised.", "attribution": "Doctor NOS, creator"}
+    },
+    {
+      "narration": "So if you were planning to build a pipeline that turns a prompt into a video, the constraint is not technical. It is that a naive version of that pipeline produces exactly what the policy now demonetizes.",
+      "visual": {"kind": "card", "title": "The constraint isn't technical", "kicker": "The real problem"}
+    },
+    {
+      "narration": "Here is the part that surprised me. The fix is also the cheap option. Original diagrams and charts are what the policy rewards, and they need no graphics card at all.",
+      "visual": {"kind": "chart", "kicker": "VRAM required", "heading": "The compliant option is also the cheapest", "data": [["Diagrams and charts", 0], ["Generated stills", 8], ["Wan 2.2 14B video", 24], ["LTX-2 video", 32]], "unit": " GB"}
+    },
+    {
+      "narration": "Generated video, meanwhile, needs twenty-four to forty-eight gigabytes of video memory, produces five second clips with no continuity, and lands you in the exact aesthetic the enforcement is aimed at.",
+      "visual": {"kind": "bullets", "kicker": "Why local video generation loses", "heading": "Three problems, not one", "bullets": ["Roughly 120 clips for a ten minute video", "No continuity between cuts", "Forces the synthetic content disclosure flag"]}
+    },
+    {
+      "narration": "The workable shape is unglamorous. Automate the grunt work, keep a human at two cheap checkpoints, and publish one to three genuinely good videos a week instead of five a day.",
+      "visual": {"kind": "bullets", "kicker": "What works", "heading": "Automation as an assistant, not a replacement", "bullets": ["You approve the script — two minutes", "You approve the finished render", "Everything between those is automated"]}
+    },
+    {
+      "narration": "Volume used to be the strategy. Now volume is a risk factor. That single inversion is the whole story.",
+      "visual": {"kind": "title", "title": "Volume is now a risk factor", "kicker": "The inversion", "subtitle": "One to three good videos beats thirty templated ones"}
+    }
+  ]
+}

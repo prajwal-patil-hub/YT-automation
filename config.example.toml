@@ -1,0 +1,88 @@
+# YT-automation configuration.
+# Copy to config.toml and edit. Secrets go in .env, never here.
+
+[channel]
+name          = "Your Channel"
+tags          = ["explainer", "technology"]
+category_id   = "27"          # 27 = Education. 28 = Science & Technology.
+made_for_kids = false          # must be set explicitly; affects monetization
+
+[script]
+# "file"   — read a JSON script you wrote or pasted from Claude (start here)
+# "ollama" — fully local generation
+provider     = "file"
+ollama_host  = "http://localhost:11434"
+ollama_model = "qwen3"
+beats        = 12
+timeout      = 600
+
+[voice]
+# "kokoro"  — Apache-2.0, 82M, faster than realtime on CPU. The recommended default.
+# "piper"   — MIT, CPU, very fast, lower quality. Good for drafts.
+# "espeak"  — robotic; pipeline testing only, never for publishing.
+# "silence" — timed silence for dry runs and tests.
+provider      = "kokoro"
+kokoro_voice  = "af_heart"
+kokoro_lang   = "a"
+speed         = 1.0
+beat_gap      = 0.35           # seconds of breathing room after each beat
+# piper_model = "/path/to/voice.onnx"
+espeak_voice  = "en-us"
+espeak_wpm    = 170
+silence_wpm   = 150
+
+[video]
+width  = 1920
+height = 1080
+fps    = 30
+crf    = 20
+preset = "veryfast"
+
+[captions]
+burn_in   = true
+font      = "DejaVu Sans"
+# ASS colours are &HBBGGRR — blue and red are swapped versus hex.
+highlight = "&H00E4C049"       # the sung word
+primary   = "&H00FFFFFF"       # the rest of the line
+outline   = "&H00101418"
+border    = 4
+
+[visuals]
+# Optional: override which provider handles a given intent kind.
+# [visuals.kind_map]
+# stock = "colour"
+
+[theme]
+bg      = "#0C1014"
+surface = "#141A20"
+ink     = "#E6EBEF"
+ink_2   = "#91A0AB"
+ink_3   = "#6C7C88"
+line    = "#27313A"
+accent  = "#49C0E4"
+good    = "#46C67E"
+warn    = "#E0A93F"
+bad     = "#F07B70"
+footer  = ""                   # small corner text on every card
+# [theme.font_paths]
+# display = "/path/to/Display-Bold.ttf"
+
+[audio]
+# Music must be cleared for monetized use. YouTube Audio Library and Pixabay
+# Music both are; the Audio Library's CC-BY subset needs a credit line.
+# music_file    = "assets/music/bed.mp3"
+music_gain_db = -22
+
+[review]
+make_proxy   = true
+proxy_height = 720             # keeps the review copy under Telegram's 50 MB bot cap
+proxy_crf    = 30
+
+[publish]
+privacy_status = "private"     # private | unlisted | public. Schedule, don't insta-publish.
+
+[paths]
+work_dir  = "work"
+stock_dir = "stock"
+db        = "work/yta.sqlite3"
+# ffmpeg  = "/usr/bin/ffmpeg"  # only if not on PATH

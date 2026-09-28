@@ -2,11 +2,14 @@
 
 A local-first, human-approved YouTube video production pipeline.
 
-**Status: RESEARCH PHASE — nothing is built yet, by design.**
+**Status: Phase 2 — the local render pipeline works end to end.**
 
-This repository currently contains *research and design documents only*. No pipeline
-code, no Docker stacks, no model weights. The goal of this phase is to agree on an
-architecture before writing a single line of implementation.
+Stages 01–08 (prompt through packaging) run locally with no GPU and no paid API.
+The review gate (Telegram) and publishing (YouTube API) are not built yet — the
+pipeline stops at a finished `master.mp4` plus an upload payload, which is
+deliberate: the human checkpoint belongs between packaging and publishing.
+
+The research and design documents that produced this architecture are in `docs/`.
 
 ## The target system (as stated by the owner)
 
@@ -21,6 +24,68 @@ Design priorities, in order:
 2. **Low effort per video** once set up.
 3. **Survives YouTube's monetization policies** (this is the binding constraint — see below).
 4. Cheap to run.
+
+## Quick start
+
+```bash
+pip install -r requirements.txt          # Pillow, and nothing else
+cp config.example.toml config.toml
+./run.sh doctor                          # check FFmpeg, fonts, providers
+
+# render the worked example end to end
+./run.sh new "policy change explainer" --run \
+        --script examples/script-policy-explainer.json
+
+./run.sh show 1                          # stage states, warnings, output paths
+```
+
+You also need **FFmpeg** on PATH, and a TTS provider. Start with
+`voice.provider = "espeak"` to prove the pipeline runs, then install Kokoro
+(`pip install kokoro soundfile`) for a voice you would actually publish.
+
+### The commands
+
+| Command | Does |
+|---|---|
+| `./run.sh new "<topic>" --run` | create a job and run it |
+| `./run.sh run <id>` | run or **resume** — finished stages are skipped |
+| `./run.sh redo <id> visuals` | re-run one stage and everything after it |
+| `./run.sh show <id>` | stage states, asset count, disclosure flag, warnings |
+| `./run.sh list` | recent jobs |
+| `./run.sh doctor` | check the local toolchain |
+
+`redo` is the important one. A 90%-good video should cost one stage, not a
+whole re-render — which is also what the Telegram review buttons will call.
+
+## How it fits together
+
+```
+  topic ──▶ script ──▶ voice ──▶ visuals ──▶ captions ──▶ assemble ──▶ package
+             │          │          │                        │
+        JSON beats   per-beat   provider                master.mp4
+        narration +   WAV +     by intent               + 720p proxy
+        visual intent duration    kind                  + metadata.json
+```
+
+Three properties worth knowing:
+
+- **Every stage is resumable.** State lives in SQLite, so an interrupted run
+  picks up where it stopped.
+- **Visual providers are pluggable by intent kind.** A beat asks for a chart, a
+  card or a stock clip; a provider resolves it. Adding generated stills later
+  (Option B) means registering a provider, not rewriting the pipeline.
+- **The disclosure flag is derived, not remembered.** Every asset records its
+  provenance, so `altered_or_synthetic_content` is a SQL query over the
+  manifest rather than something a human has to set.
+
+## What is not built yet
+
+| | |
+|---|---|
+| Telegram review gate | Next increment. Needs a bot token, a whitelisted user id, and a self-hosted Bot API server for the 50 MB cap. |
+| YouTube publishing | After the gate. Do one **manual** upload first — it proves OAuth and catches uploads silently locked to private. |
+| Forced-alignment captions | Timing is currently estimated from known script text, which is decent but drifts in long beats. WhisperX is the upgrade. |
+| Generated stills (Option B) | The provider seam exists and is documented; nothing plugged into it. |
 
 ## Read in this order
 

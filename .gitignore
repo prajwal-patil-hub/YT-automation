@@ -6,35 +6,34 @@ client_secret*.json
 *token*.json
 credentials.json
 
-# Media & model artifacts
-assets/
-stock/
+# Local configuration (copy config.example.toml -> config.toml)
+config.toml
+
+# Pipeline output and local state
+work/
+stock/*
+!stock/README.md
+assets/music/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Model weights and media
 models/
-renders/
-out/
-*.mp4
-*.mkv
-*.mov
-*.wav
-*.mp3
 *.safetensors
 *.gguf
 *.ckpt
-
-# Local state
-*.sqlite
-*.sqlite3
-*.db
+*.onnx
 
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
 
 # Node
 node_modules/
-.next/
 dist/
 
 # OS
