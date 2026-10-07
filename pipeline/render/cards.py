@@ -12,10 +12,12 @@ from typing import Any, Sequence
 
 from PIL import Image, ImageDraw
 
+from .. import standards
 from .theme import Theme
 
-# Layout constants, expressed as fractions of frame width so any resolution works.
-MARGIN = 0.072
+# Text must sit inside the title-safe box (80% of frame) or a player that
+# overscans will clip it. See pipeline/standards.py.
+MARGIN = standards.TITLE_SAFE_MARGIN
 RULE_W = 3
 
 
@@ -51,7 +53,9 @@ def _footer(draw, size: tuple[int, int], theme: Theme, text: str | None) -> None
     w, h = size
     m = int(w * MARGIN)
     font = theme.font("mono", max(14, int(w * 0.0105)))
-    draw.text((m, h - int(h * 0.088)), text, font=font, fill=theme.ink_3)
+    # Sit above the player chrome, not in it.
+    y = standards.player_ui_top(h) - int(font.size * 1.6)
+    draw.text((m, y), text, font=font, fill=theme.ink_3)
 
 
 def title_card(

@@ -20,6 +20,7 @@ STAGES = [
     "captions",
     "assemble",
     "package",
+    "preflight",
 ]
 
 

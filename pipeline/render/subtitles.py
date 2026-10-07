@@ -12,6 +12,8 @@ alignment (WhisperX against the same known text), which is why `mode` exists.
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from .. import standards
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -83,7 +85,9 @@ def _ass_header(width: int, height: int, style: dict) -> str:
     primary = style.get("primary", "&H00FFFFFF")      # unsung / base text
     highlight = style.get("highlight", "&H00E4C049")  # sung word (BGR!)
     outline = style.get("outline", "&H00101418")
-    margin_v = style.get("margin_v", int(height * 0.09))
+    # The player draws its progress bar over the bottom of the frame, so
+    # captions sit clear of it rather than merely near it.
+    margin_v = style.get("margin_v", int(height * standards.CAPTION_BOTTOM_MARGIN))
     return f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}

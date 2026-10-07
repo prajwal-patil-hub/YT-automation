@@ -13,8 +13,9 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from .. import standards
 from ..render import parallax
-from ..util import ffmpeg
+from ..util import ffmpeg, loudness
 
 VIDEO_EXT = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 
@@ -194,6 +195,39 @@ def run(ctx) -> None:
         ],
         override=ctx.ffmpeg,
     )
+    # --- 4b. loudness ---------------------------------------------------------
+    # YouTube only turns loud audio DOWN; it never boosts quiet audio. An
+    # un-normalised master plays several dB weaker than everything around it.
+    # Video is stream-copied, so this pass is cheap.
+    if ctx.cfg.get("audio.normalise", True):
+        staged = ctx.job_dir / "master-loudnorm.mp4"
+        try:
+            before = loudness.measure(ctx.master_path, override=ctx.ffprobe_bin_for_measure)
+            m = loudness._measure_for_loudnorm(ctx.master_path, override=ctx.ffmpeg)
+            af = (
+                f"loudnorm=I={standards.TARGET_LUFS}"
+                f":TP={standards.TARGET_TRUE_PEAK_DB}"
+                f":LRA={standards.TARGET_LRA}"
+                f":measured_I={m['input_i']}:measured_TP={m['input_tp']}"
+                f":measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}"
+                f":offset={m['target_offset']}:linear=true"
+            )
+            ffmpeg.run(
+                ["-y", "-i", str(ctx.master_path), "-af", af,
+                 "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+                 "-movflags", "+faststart", str(staged)],
+                override=ctx.ffmpeg,
+            )
+            staged.replace(ctx.master_path)
+            after = loudness.measure(ctx.master_path, override=ctx.ffmpeg)
+            ctx.log(
+                f"loudness: {before.integrated:.1f} -> {after.integrated:.1f} LUFS "
+                f"(target {standards.TARGET_LUFS}), true peak {after.true_peak:.1f} dBTP"
+            )
+        except (RuntimeError, KeyError, OSError) as exc:
+            staged.unlink(missing_ok=True)
+            ctx.log(f"loudness normalisation skipped: {exc}", "warn")
+
     duration = ffmpeg.probe_duration(ctx.master_path, override=ctx.ffprobe)
     size_mb = ctx.master_path.stat().st_size / 1e6
     ctx.log(f"master: {ctx.master_path.name} · {duration:.1f}s · {size_mb:.1f} MB")

@@ -88,6 +88,41 @@ You also need **FFmpeg** on PATH, and a TTS provider. Start with
 `redo` is the important one. A 90%-good video should cost one stage, not a
 whole re-render — which is also what the Telegram review buttons will call.
 
+## Delivery standards — the floor under every niche
+
+`pipeline/standards.py` holds the numbers that do not depend on subject, style
+or channel, each with the reason it was chosen. A video can be brilliant and
+still fail here, and failing here makes it worse for reasons nobody articulates
+— it just sounds quiet, or the text sits under the progress bar.
+
+| | | Why |
+|---|---|---|
+| Loudness | **-14 LUFS** integrated | YouTube turns loud audio *down* and never boosts quiet audio. An un-normalised master plays several dB weaker than everything around it. |
+| True peak | **-1 dBTP** | Headroom so lossy re-encoding does not clip. |
+| Title-safe | **80% of frame** | Anything outside risks being cropped by a player that overscans. |
+| Player chrome | bottom **8%** | The progress bar and controls are drawn over the frame. |
+| Captions | **12%** from the bottom | Clear of the chrome, not merely near it. |
+| Beat length | **45s** maximum | One unchanging frame loses attention in any niche. |
+| Hook | **20s** maximum | A long opening beat is almost always throat-clearing. |
+
+Loudness is applied automatically as a two-pass EBU R128 normalisation. The
+single-pass form works from a running estimate and lands a decibel or two off;
+since the whole point is hitting a number, the second pass is worth it.
+
+## Preflight — the machine checks before you do
+
+A `preflight` stage runs after packaging and writes `preflight.json`. It
+verifies **19 objective properties** of the finished deliverable: measured
+loudness and true peak, resolution and frame rate, caption presence and sync,
+beat pacing and hook length, title-safe compliance of every rendered visual,
+title/description/tag limits, thumbnail dimensions and feed-size legibility,
+disclosure-flag consistency with the asset manifest, and cross-channel asset
+reuse.
+
+A failing check stops the job before review (`preflight.block_on_fail`). The
+point is to spend your attention on judgement — is this interesting, is the
+angle right — rather than on noticing that the audio is 7 dB quiet.
+
 ## How it fits together
 
 ```

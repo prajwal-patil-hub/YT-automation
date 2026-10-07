@@ -54,6 +54,7 @@ preset       = "space"       # ambient preset for scene visuals
 archetype    = "open-field"  # scene archetype for layered visuals
 
 [audio]
+normalise     = true        # two-pass EBU R128 to -14 LUFS / -1 dBTP
 music_gain_db = -22
 # music_file = "assets/music/bed.mp3"   # must be cleared for monetized use
 
@@ -61,6 +62,9 @@ music_gain_db = -22
 make_proxy   = true
 proxy_height = 720           # keeps the review copy under Telegram's 50 MB cap
 proxy_crf    = 30
+
+[preflight]
+block_on_fail = true    # a failing check stops the job before review
 
 [publish]
 privacy_status = "private"   # schedule rather than insta-publish

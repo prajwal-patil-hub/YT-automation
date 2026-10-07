@@ -15,7 +15,7 @@ from .config import Config
 from .db import Store
 from .models import STAGES, Script
 from .stages import (
-    assemble_stage, captions_stage, package_stage,
+    assemble_stage, captions_stage, package_stage, preflight_stage,
     script_stage, visuals_stage, voice_stage,
 )
 
@@ -26,6 +26,7 @@ STAGE_FUNCS: dict[str, Callable[["StageContext"], None]] = {
     "captions": captions_stage.run,
     "assemble": assemble_stage.run,
     "package": package_stage.run,
+    "preflight": preflight_stage.run,
 }
 
 
@@ -68,6 +69,11 @@ class StageContext:
     def ffmpeg(self) -> str | None: return self.cfg.get("paths.ffmpeg")
     @property
     def ffprobe(self) -> str | None: return self.cfg.get("paths.ffprobe")
+
+    @property
+    def ffprobe_bin_for_measure(self) -> str | None:
+        """ebur128 is an ffmpeg filter, so measurement uses ffmpeg."""
+        return self.cfg.get("paths.ffmpeg")
 
     def log(self, message: str, level: str = "info") -> None:
         self.store.log(self.job_id, level, message, self.stage)

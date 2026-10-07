@@ -10,6 +10,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
 
+from .. import standards
 from . import ambient
 from .theme import Theme
 
@@ -65,7 +66,7 @@ def scene_card(
         d_mask = ImageDraw.Draw(mask)
         draw = ImageDraw.Draw(img)
 
-        m = int(w * 0.11)
+        m = int(w * standards.TITLE_SAFE_MARGIN)
         max_w = w - 2 * m
         title_font = theme.font("display", int(w * 0.040))
         sub_font = theme.font("body", int(w * 0.0205))

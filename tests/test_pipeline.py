@@ -215,3 +215,87 @@ class TestChannelResolution(unittest.TestCase):
         a = styles.get("explainer-dark")
         a["theme"]["accent"] = "#000000"
         self.assertNotEqual(styles.get("explainer-dark")["theme"]["accent"], "#000000")
+
+
+class TestDeliveryStandards(unittest.TestCase):
+    def test_safe_box_is_eighty_percent_of_frame(self):
+        from pipeline import standards
+        left, top, right, bottom = standards.safe_box(1920, 1080)
+        self.assertEqual((left, top, right, bottom), (192, 108, 1728, 972))
+        self.assertAlmostEqual((right - left) / 1920, 0.80, places=2)
+        self.assertAlmostEqual((bottom - top) / 1080, 0.80, places=2)
+
+    def test_player_ui_zone_is_excluded(self):
+        from pipeline import standards
+        self.assertEqual(standards.player_ui_top(1080), int(1080 * 0.92))
+
+    def test_loudness_off_target(self):
+        from pipeline.util.loudness import Loudness
+        from pipeline import standards
+        self.assertAlmostEqual(Loudness(-21.0, -1.5, 5.0).off_target(), -7.0)
+        self.assertAlmostEqual(Loudness(standards.TARGET_LUFS, -1.0, 5.0).off_target(), 0.0)
+
+
+class TestSafeAreaDetection(unittest.TestCase):
+    """The detector must pass text drawn on the margin and still catch real
+    violations — a check that cries wolf gets switched off."""
+
+    def _render(self, directory, xy):
+        from PIL import Image, ImageDraw
+        from pipeline.render.theme import Theme
+        img = Image.new("RGB", (1920, 1080), "#0C1014")
+        ImageDraw.Draw(img).text(xy, "LEGIBLE TEXT",
+                                 font=Theme().font("display", 70), fill="#FFFFFF")
+        path = Path(directory) / f"{xy[0]}-{xy[1]}.png"
+        img.save(path)
+        return path
+
+    def _outside(self, path):
+        from pipeline.stages.preflight_stage import (
+            _high_contrast_bbox, SAFE_AREA_TOLERANCE_PX as tol,
+        )
+        from pipeline import standards
+        box = _high_contrast_bbox(path)
+        if box is None:
+            return False
+        left, top, right, bottom = standards.safe_box(1920, 1080)
+        x0, y0, x1, y1 = box
+        return (x0 < left - tol or y0 < top - tol
+                or x1 > right + tol or y1 > bottom + tol)
+
+    def test_catches_text_outside_the_safe_box(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertTrue(self._outside(self._render(d, (20, 500))),  "far left")
+            self.assertTrue(self._outside(self._render(d, (1700, 500))), "off right")
+            self.assertTrue(self._outside(self._render(d, (400, 1040))), "player UI zone")
+
+    def test_passes_text_inside_the_safe_box(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertFalse(self._outside(self._render(d, (400, 500))))
+
+    def test_smooth_gradient_has_no_high_contrast_content(self):
+        from pipeline.render import ambient
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "amb.png"
+            ambient.compose((1920, 1080), seed=3, top="#1C1024",
+                            bottom="#06040A", glow="#C98F35").save(path)
+            from pipeline.stages.preflight_stage import _high_contrast_bbox
+            self.assertIsNone(_high_contrast_bbox(path))
+
+
+class TestPreflightReport(unittest.TestCase):
+    def test_failures_block_and_warnings_do_not(self):
+        from pipeline.stages.preflight_stage import Report, PASS, WARN, FAIL
+        r = Report()
+        r.add("a", PASS); r.add("b", WARN, "minor"); r.add("c", FAIL, "bad")
+        obj = r.to_obj()
+        self.assertFalse(obj["passed"])
+        self.assertEqual(obj["counts"], {"pass": 1, "warn": 1, "fail": 1})
+        self.assertEqual([c.name for c in r.failures], ["c"])
+        self.assertEqual([c.name for c in r.warnings], ["b"])
+
+    def test_warnings_alone_still_pass(self):
+        from pipeline.stages.preflight_stage import Report, PASS, WARN
+        r = Report()
+        r.add("a", PASS); r.add("b", WARN, "minor")
+        self.assertTrue(r.to_obj()["passed"])
