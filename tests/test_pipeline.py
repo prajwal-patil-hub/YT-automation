@@ -157,3 +157,61 @@ class TestStageAssetReplacement(unittest.TestCase):
             self.assertEqual(len(store.assets_for(job)), 1)
             self.assertFalse(store.requires_disclosure(job))
             store.close()
+
+
+class TestLegacyDatabaseMigration(unittest.TestCase):
+    def test_opens_a_database_created_before_channels_existed(self):
+        """Regression: indexes were created before the migration that adds
+        their column, so opening any pre-existing database aborted outright."""
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "legacy.sqlite3"
+            import sqlite3
+            conn = sqlite3.connect(path)
+            conn.executescript(
+                "CREATE TABLE jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                " topic TEXT NOT NULL, title TEXT, status TEXT NOT NULL,"
+                " created_at REAL NOT NULL, updated_at REAL NOT NULL,"
+                " meta TEXT NOT NULL DEFAULT '{}');"
+            )
+            conn.execute(
+                "INSERT INTO jobs (topic, status, created_at, updated_at)"
+                " VALUES ('old', 'new', 0, 0)"
+            )
+            conn.commit()
+            conn.close()
+
+            store = Store(path)                      # must not raise
+            cols = {r["name"] for r in store.conn.execute("PRAGMA table_info(jobs)")}
+            self.assertIn("channel", cols)
+            rows = store.list_jobs()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["channel"], "default")   # back-filled
+            new_id = store.create_job("fresh", channel="alpha")
+            self.assertEqual(store.get_job(new_id)["channel"], "alpha")
+            store.close()
+
+
+class TestChannelResolution(unittest.TestCase):
+    def test_style_then_channel_overrides_base(self):
+        from pipeline import channels as ch
+        base = {"video": {"motion": "none", "fps": 30}, "theme": {"accent": "#111"}}
+        style = {"video": {"motion": "drift"}, "theme": {"accent": "#222"}}
+        chan = {"theme": {"accent": "#333"}}
+        merged = ch.deep_merge(ch.deep_merge(base, style), chan)
+        self.assertEqual(merged["video"]["motion"], "drift")   # style beat base
+        self.assertEqual(merged["video"]["fps"], 30)           # base survived
+        self.assertEqual(merged["theme"]["accent"], "#333")    # channel beat style
+
+    def test_every_style_is_complete(self):
+        from pipeline import styles
+        for name in styles.names():
+            st = styles.get(name)
+            for section in ("video", "captions", "voice", "visuals", "theme"):
+                self.assertIn(section, st, f"{name} missing [{section}]")
+            self.assertIn("default_kind", st["visuals"], name)
+
+    def test_styles_are_deep_copied(self):
+        from pipeline import styles
+        a = styles.get("explainer-dark")
+        a["theme"]["accent"] = "#000000"
+        self.assertNotEqual(styles.get("explainer-dark")["theme"]["accent"], "#000000")

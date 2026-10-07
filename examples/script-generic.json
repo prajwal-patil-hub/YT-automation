@@ -1,0 +1,16 @@
+{
+  "title": "A Generic Five-Beat Script",
+  "description": "Deliberately niche-neutral. Most beats name no visual kind, so each channel renders them in its own style.",
+  "sources": ["https://example.org/source"],
+  "beats": [
+    {"narration": "This is the opening beat. It names no visual kind at all, so whichever channel renders it decides what appears on screen."},
+    {"narration": "The second beat is the same. One script, written once, with no idea which channel will eventually use it.",
+     "visual": {"title": "One script, any channel"}},
+    {"narration": "A beat may still ask for something specific when it matters. This one wants a chart, and will get a chart on every channel.",
+     "visual": {"kind": "chart", "heading": "Beats rendered per style", "data": [["explainer", 5], ["calm", 5], ["cinematic", 5]], "unit": " beats"}},
+    {"narration": "This beat asks for a list, because the content genuinely is a list, regardless of the channel's house style.",
+     "visual": {"kind": "bullets", "heading": "What a channel chooses", "bullets": ["Its palette and pacing", "Its default visual", "Whether captions are burned in"]}},
+    {"narration": "And the last beat names nothing again, closing in whatever register the channel uses.",
+     "visual": {"title": "Same words, different register"}}
+  ]
+}

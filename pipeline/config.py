@@ -49,8 +49,18 @@ class Config:
         return node
 
     @property
+    def channel_slug(self) -> str:
+        return str(self.get("channel.slug", "default"))
+
+    @property
+    def style_name(self) -> str:
+        return str(self.get("style", "explainer-dark"))
+
+    @property
     def work_dir(self) -> Path:
-        return (self.root / self.get("paths.work_dir", "work")).resolve()
+        """Per-channel output root. The database stays shared — see channels.py."""
+        base = (self.root / self.get("paths.work_dir", "work")).resolve()
+        return base / self.channel_slug
 
     @property
     def stock_dir(self) -> Path:
@@ -63,12 +73,19 @@ class Config:
     def job_dir(self, job_id: int) -> Path:
         return self.work_dir / f"job-{job_id:04d}"
 
+    def describe(self) -> str:
+        return (f"{self.get('channel.name')} [{self.channel_slug}] "
+                f"· style={self.style_name} · niche={self.get('channel.niche') or '(unset)'}")
+
 
 def load(path: Path | None = None) -> Config:
     cfg_path = Path(path) if path else DEFAULT_CONFIG
     if not cfg_path.exists():
         raise FileNotFoundError(
-            f"No config at {cfg_path}. Copy config.example.toml to config.toml."
+            f"No config at {cfg_path}.\n"
+            "  Channels are the normal way in — create one with:\n"
+            "    ./run.sh new-channel <name>\n"
+            "  (--config is only for a standalone file outside channels/.)"
         )
     root = cfg_path.resolve().parent
     _load_env(root / ".env")

@@ -6,7 +6,8 @@ client_secret*.json
 *token*.json
 credentials.json
 
-# Local configuration (copy config.example.toml -> config.toml)
+# Channel profiles live in channels/ and ARE committed — they carry no
+# secrets. Secrets stay in .env.
 config.toml
 
 # Pipeline output and local state

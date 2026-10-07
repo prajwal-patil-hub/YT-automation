@@ -13,6 +13,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from ..render import parallax
 from ..util import ffmpeg
 
 VIDEO_EXT = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
@@ -22,6 +23,28 @@ def _escape_filter_path(path: Path) -> str:
     """FFmpeg filter arguments need ':' and '\\' escaped inside the value."""
     text = str(path)
     return text.replace("\\", "/").replace(":", r"\:").replace("'", r"\'")
+
+
+def _parallax_segment(ctx, beat, out: Path, layers: list[dict]) -> Path:
+    """Render a beat whose visual came with layers, drifting each by depth."""
+    w, h = int(ctx.cfg.get("video.width", 1920)), int(ctx.cfg.get("video.height", 1080))
+    fps = int(ctx.cfg.get("video.fps", 30))
+    rate = float(beat.visual.spec.get("motion_rate")
+                 or ctx.cfg.get("video.motion_rate", 0.05))
+    duration = max(beat.duration or 0.0, 0.1)
+
+    inputs, filter_complex = parallax.build(
+        layers, width=w, height=h, fps=fps, rate=rate
+    )
+    ffmpeg.run(
+        ["-y", *inputs, "-filter_complex", filter_complex, "-map", "[v]",
+         "-t", f"{duration:.3f}", "-an",
+         "-c:v", "libx264", "-preset", ctx.cfg.get("video.preset", "veryfast"),
+         "-crf", str(ctx.cfg.get("video.crf", 20)), "-pix_fmt", "yuv420p",
+         "-r", str(fps), "-video_track_timescale", "90000", str(out)],
+        override=ctx.ffmpeg,
+    )
+    return out
 
 
 def _segment(ctx, beat, out: Path) -> Path:
@@ -91,7 +114,13 @@ def run(ctx) -> None:
             raise RuntimeError(f"Beat {beat.index} has no visual; run the visuals stage first")
         seg = seg_dir / f"seg-{beat.index:03d}.mp4"
         if not seg.exists() or ctx.force:
-            _segment(ctx, beat, seg)
+            layers = ctx.layer_manifests.get(beat.index)
+            motion = (beat.visual.spec.get("motion")
+                      or ctx.cfg.get("video.motion", "none"))
+            if layers and motion == "parallax":
+                _parallax_segment(ctx, beat, seg, layers)
+            else:
+                _segment(ctx, beat, seg)
         segments.append(seg)
     ctx.log(f"rendered {len(segments)} segments")
 

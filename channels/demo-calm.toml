@@ -1,0 +1,27 @@
+# Channel: demo-calm
+# Inherits channels/_base.toml, then the "calm-narrative" style, then this file.
+# The niche lives here, not in code — change it freely.
+
+style = "calm-narrative"
+
+[channel]
+name          = "Demo Calm"
+# What this channel is about. Used in prompts and packaging; set it when you
+# decide the niche. Nothing in the pipeline depends on its value.
+niche         = ""
+tags          = []
+category_id   = "27"        # 27 Education · 28 Science & Tech · 24 Entertainment
+made_for_kids = false       # see docs/05 — this flag cuts RPM by 50-80%
+
+[script]
+# "file" while you write scripts yourself or paste them from Claude.
+# "ollama" once you want them generated locally.
+provider = "file"
+beats    = 12
+
+[voice]
+provider = "espeak"   # placeholder for this container
+
+# Anything from channels/_base.toml can be overridden here, e.g.:
+# [video]
+# motion_rate = 0.04

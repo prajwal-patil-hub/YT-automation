@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from . import ProviderUnavailable, RenderedVisual, register_visual
-from ..render import cards, scenes
+from ..render import cards, layered, scenes
 from ..render.theme import Theme
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
@@ -227,6 +227,38 @@ class SceneVisual(_CardBase):
         )
 
 
+@register_visual("layered")
+class LayeredVisual(_CardBase):
+    """Multi-layer silhouette scenes, drifted at per-layer rates by the assembler.
+
+    Returns a flattened still *and* the layer manifest. A beat renders fine
+    without parallax (the flattened frame is used), so a channel can switch
+    motion on and off without touching its scripts.
+    """
+    name = "layered"
+    kinds = ("layered", "parallax", "silhouette")
+
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.default_archetype = cfg.get("visuals.archetype", "open-field")
+
+    def render(self, intent, out_path: Path, ctx: dict[str, Any]) -> RenderedVisual:
+        spec = intent.spec
+        archetype = spec.get("archetype") or spec.get("scene") or self.default_archetype
+        seed = int(spec.get("seed", (ctx.get("beat_index", 0) * 7919) + 13))
+
+        layer_dir = out_path.parent / f"{out_path.stem}-layers"
+        manifest = layered.render_layers(archetype, self.size, layer_dir, seed=seed)
+        # Flattened still, so the beat works with or without parallax motion.
+        layered.flatten(archetype, self.size, seed=seed).save(out_path)
+
+        return RenderedVisual(
+            path=out_path, provider=self.name, kind="layered",
+            license="original", generated=False, photorealistic=False,
+            layers=manifest,
+        )
+
+
 @register_visual("colour")
 class ColourVisual(_CardBase):
     """Fallback. Never fails, so one bad intent cannot lose a whole render."""
@@ -249,7 +281,8 @@ class ColourVisual(_CardBase):
 # Intent kind -> provider name. Built once from each provider's declared kinds.
 def kind_map() -> dict[str, str]:
     mapping: dict[str, str] = {}
-    for cls in (CardVisual, ChartVisual, SceneVisual, StockVisual, ColourVisual):
+    for cls in (CardVisual, ChartVisual, SceneVisual, LayeredVisual,
+                StockVisual, ColourVisual):
         for kind in cls.kinds:
             mapping[kind] = cls.name
     return mapping

@@ -29,15 +29,43 @@ Design priorities, in order:
 
 ```bash
 pip install -r requirements.txt          # Pillow, and nothing else
-cp config.example.toml config.toml
-./run.sh doctor                          # check FFmpeg, fonts, providers
 
-# render the worked example end to end
-./run.sh new "policy change explainer" --run \
-        --script examples/script-policy-explainer.json
+./run.sh styles                          # the visual registers available
+./run.sh new-channel my-channel --style calm-narrative
+./run.sh --channel my-channel doctor     # check FFmpeg, fonts, providers
 
-./run.sh show 1                          # stage states, warnings, output paths
+./run.sh --channel my-channel new "a topic" --run \
+        --script examples/script-generic.json
+
+./run.sh --channel my-channel show 1
 ```
+
+## Channels — the niche is a config file, not code
+
+A channel is one TOML file under `channels/`. Settings resolve in three layers:
+
+```
+channels/_base.toml   →   style preset   →   channels/<name>.toml
+```
+
+So running several channels in different niches means several short files, and
+nothing about any niche lives in the code. **The same script renders differently
+on each channel** — a beat that names no visual kind gets whichever default its
+channel declares.
+
+| Style | Register |
+|---|---|
+| `explainer-dark` / `explainer-light` | Dense and information-forward. Cards and charts, karaoke captions burned in, no camera move. |
+| `calm-narrative` | Slow, dark, low-contrast. Ambient grounds, gentle drift, captions off because on-screen text asks to be read. |
+| `cinematic-layers` | Layered silhouettes with real parallax. The slowest register. |
+| `documentary` | Footage-forward with supporting cards. Moderate pace, captions on. |
+
+A style describes a *register*, never a subject — `calm-narrative` suits sleep
+stories, slow history and meditation equally.
+
+All channels share one database, deliberately: asset-reuse detection has to see
+across channels, since running the same stock clip on three of them is exactly
+the repetition that template detection looks for.
 
 You also need **FFmpeg** on PATH, and a TTS provider. Start with
 `voice.provider = "espeak"` to prove the pipeline runs, then install Kokoro
@@ -47,11 +75,14 @@ You also need **FFmpeg** on PATH, and a TTS provider. Start with
 
 | Command | Does |
 |---|---|
-| `./run.sh new "<topic>" --run` | create a job and run it |
-| `./run.sh run <id>` | run or **resume** — finished stages are skipped |
-| `./run.sh redo <id> visuals` | re-run one stage and everything after it |
+| `./run.sh channels` | list channels, their styles and job counts |
+| `./run.sh new-channel <name> --style <style>` | scaffold a channel |
+| `./run.sh styles` | list visual registers |
+| `./run.sh --channel <c> new "<topic>" --run` | create a job and run it |
+| `./run.sh --channel <c> run <id>` | run or **resume** — finished stages are skipped |
+| `./run.sh --channel <c> redo <id> visuals` | re-run one stage and everything after it |
 | `./run.sh show <id>` | stage states, asset count, disclosure flag, warnings |
-| `./run.sh list` | recent jobs |
+| `./run.sh list --all` | recent jobs across every channel |
 | `./run.sh doctor` | check the local toolchain |
 
 `redo` is the important one. A 90%-good video should cost one stage, not a

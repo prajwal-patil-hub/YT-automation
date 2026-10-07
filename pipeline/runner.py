@@ -42,6 +42,7 @@ class StageContext:
     quiet: bool = False
     # Populated by the visuals stage; read by the assembler.
     media_kinds: dict[int, str] = field(default_factory=dict)
+    layer_manifests: dict[int, list[dict]] = field(default_factory=dict)
 
     # --- paths ----------------------------------------------------------------
     @property

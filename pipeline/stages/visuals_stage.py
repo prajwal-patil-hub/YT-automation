@@ -30,9 +30,14 @@ def run(ctx) -> None:
             cache[name] = get_visual(name, ctx.cfg)
         return cache[name]
 
+    default_kind = ctx.cfg.get("visuals.default_kind", "card")
     for beat in ctx.script.beats:
-        kind = beat.visual.kind
-        name = mapping.get(kind, "colour")
+        # A beat that names no kind gets the channel's default, so the same
+        # script can be rendered by any channel in any style.
+        kind = beat.visual.kind or default_kind
+        if kind == "card" and not beat.visual.spec and default_kind != "card":
+            kind = default_kind
+        name = mapping.get(kind, mapping.get(default_kind, "colour"))
         out = vis_dir / f"beat-{beat.index:03d}.png"
         beat_ctx = {
             "beat_index": beat.index,
@@ -51,6 +56,8 @@ def run(ctx) -> None:
             fallbacks += 1
 
         beat.visual_path = str(rendered.path)
+        if rendered.layers:
+            ctx.layer_manifests[beat.index] = rendered.layers
         used_paths.add(str(rendered.path))
         beat.visual_asset_id = ctx.store.add_asset(
             ctx.job_id, rendered.kind, rendered.path, rendered.provider,

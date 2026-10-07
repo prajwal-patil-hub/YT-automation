@@ -30,6 +30,7 @@ class RenderedVisual:
     generated: bool = False          # produced by a generative model
     photorealistic: bool = False     # depicts real-looking people or places
     media: str = "image"             # image | video — the assembler branches on this
+    layers: list[dict] | None = None # set by layered scenes; drives parallax
 
 
 class TTSProvider(Protocol):

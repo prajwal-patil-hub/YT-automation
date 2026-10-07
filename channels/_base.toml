@@ -1,0 +1,71 @@
+# Shared defaults for every channel.
+#
+# Resolution order:  this file  →  style preset  →  channels/<name>.toml
+#
+# Nothing here is niche-specific. Topic, tone and look belong to a channel
+# file or a style; this is the machinery.
+
+style = "explainer-dark"
+
+[channel]
+name          = "Untitled"
+niche         = ""
+tags          = []
+category_id   = "27"
+made_for_kids = false
+
+[script]
+provider     = "file"
+ollama_host  = "http://localhost:11434"
+ollama_model = "qwen3"
+beats        = 12
+timeout      = 600
+
+[voice]
+provider      = "kokoro"
+kokoro_voice  = "af_heart"
+kokoro_lang   = "a"
+speed         = 1.0
+beat_gap      = 0.35
+espeak_voice  = "en-us"
+espeak_wpm    = 170
+silence_wpm   = 150
+
+[video]
+width       = 1920
+height      = 1080
+fps         = 30
+crf         = 20
+preset      = "veryfast"
+motion      = "none"        # none | drift | zoom | parallax
+motion_rate = 0.16
+
+[captions]
+burn_in   = true
+font      = "DejaVu Sans"
+highlight = "&H00E4C049"     # ASS colours are &HBBGGRR
+primary   = "&H00FFFFFF"
+outline   = "&H00101418"
+border    = 4
+
+[visuals]
+default_kind = "card"        # provider for a beat that names no kind
+preset       = "space"       # ambient preset for scene visuals
+archetype    = "open-field"  # scene archetype for layered visuals
+
+[audio]
+music_gain_db = -22
+# music_file = "assets/music/bed.mp3"   # must be cleared for monetized use
+
+[review]
+make_proxy   = true
+proxy_height = 720           # keeps the review copy under Telegram's 50 MB cap
+proxy_crf    = 30
+
+[publish]
+privacy_status = "private"   # schedule rather than insta-publish
+
+[paths]
+work_dir  = "work"           # per-channel subdirectory is added automatically
+stock_dir = "stock"
+db        = "work/yta.sqlite3"   # shared across channels on purpose

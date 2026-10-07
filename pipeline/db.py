@@ -21,6 +21,7 @@ from typing import Any, Iterable
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel         TEXT NOT NULL DEFAULT 'default',
     topic           TEXT NOT NULL,
     title           TEXT,
     status          TEXT NOT NULL DEFAULT 'new',
@@ -54,8 +55,6 @@ CREATE TABLE IF NOT EXISTS assets (
     photorealistic  INTEGER NOT NULL DEFAULT 0,   -- depicts real-looking people/places
     created_at      REAL NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_assets_sha ON assets(sha256);
-CREATE INDEX IF NOT EXISTS idx_assets_job ON assets(job_id);
 
 CREATE TABLE IF NOT EXISTS approvals (
     job_id          INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
@@ -76,6 +75,15 @@ CREATE TABLE IF NOT EXISTS events (
     stage           TEXT,
     message         TEXT NOT NULL
 );
+"""
+
+# Indexes are applied *after* migrations: an index on a column that an older
+# database has not got yet would abort the whole schema script, and the
+# migration that adds the column would then never run.
+INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_assets_sha ON assets(sha256);
+CREATE INDEX IF NOT EXISTS idx_assets_job ON assets(job_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_channel ON jobs(channel);
 """
 
 
@@ -99,7 +107,22 @@ class Store:
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.execute("PRAGMA journal_mode = WAL")
         self.conn.executescript(SCHEMA)
+        self._migrate()
+        self.conn.executescript(INDEXES)
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        """Additive migrations for databases created by an earlier version."""
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(jobs)")}
+        if "channel" not in cols:
+            self.conn.execute(
+                "ALTER TABLE jobs ADD COLUMN channel TEXT NOT NULL DEFAULT 'default'"
+            )
+        acols = {r["name"] for r in self.conn.execute("PRAGMA table_info(assets)")}
+        if "stage" not in acols:
+            self.conn.execute(
+                "ALTER TABLE assets ADD COLUMN stage TEXT NOT NULL DEFAULT 'unknown'"
+            )
 
     def close(self) -> None:
         self.conn.close()
@@ -111,12 +134,13 @@ class Store:
         self.close()
 
     # --- jobs -----------------------------------------------------------------
-    def create_job(self, topic: str, meta: dict[str, Any] | None = None) -> int:
+    def create_job(self, topic: str, meta: dict[str, Any] | None = None,
+                   *, channel: str = "default") -> int:
         now = time.time()
         cur = self.conn.execute(
-            "INSERT INTO jobs (topic, status, created_at, updated_at, meta)"
-            " VALUES (?, 'new', ?, ?, ?)",
-            (topic, now, now, json.dumps(meta or {})),
+            "INSERT INTO jobs (channel, topic, status, created_at, updated_at, meta)"
+            " VALUES (?, ?, 'new', ?, ?, ?)",
+            (channel, topic, now, now, json.dumps(meta or {})),
         )
         self.conn.commit()
         return int(cur.lastrowid)
@@ -126,12 +150,17 @@ class Store:
             "SELECT * FROM jobs WHERE id = ?", (job_id,)
         ).fetchone()
 
-    def list_jobs(self, limit: int = 25) -> list[sqlite3.Row]:
-        return list(
-            self.conn.execute(
-                "SELECT * FROM jobs ORDER BY id DESC LIMIT ?", (limit,)
-            )
-        )
+    def list_jobs(self, limit: int = 25, *, channel: str | None = None) -> list[sqlite3.Row]:
+        if channel:
+            return list(self.conn.execute(
+                "SELECT * FROM jobs WHERE channel = ? ORDER BY id DESC LIMIT ?",
+                (channel, limit)))
+        return list(self.conn.execute(
+            "SELECT * FROM jobs ORDER BY id DESC LIMIT ?", (limit,)))
+
+    def channel_counts(self) -> dict[str, int]:
+        return {r["channel"]: r["n"] for r in self.conn.execute(
+            "SELECT channel, COUNT(*) AS n FROM jobs GROUP BY channel ORDER BY channel")}
 
     def update_job(self, job_id: int, **fields: Any) -> None:
         if not fields:
@@ -269,7 +298,10 @@ class Store:
             self.conn.execute(
                 "SELECT a.beat_index, a.path, a.sha256, a.provider,"
                 "       (SELECT GROUP_CONCAT(DISTINCT b.job_id) FROM assets b"
-                "         WHERE b.sha256 = a.sha256 AND b.job_id < a.job_id) AS seen_in"
+                "         WHERE b.sha256 = a.sha256 AND b.job_id < a.job_id) AS seen_in,"
+                "       (SELECT GROUP_CONCAT(DISTINCT j.channel) FROM assets b"
+                "         JOIN jobs j ON j.id = b.job_id"
+                "         WHERE b.sha256 = a.sha256 AND b.job_id < a.job_id) AS seen_channels"
                 "  FROM assets a"
                 " WHERE a.job_id = ? AND a.sha256 IS NOT NULL"
                 "   AND EXISTS (SELECT 1 FROM assets b"

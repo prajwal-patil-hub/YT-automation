@@ -15,7 +15,9 @@ import shutil
 import sys
 from pathlib import Path
 
+from . import channels as channels_mod
 from . import config as config_mod
+from . import styles as styles_mod
 from .db import Store
 from .models import STAGES
 from .providers import available
@@ -28,8 +30,9 @@ def _store(cfg) -> Store:
 
 def cmd_new(args, cfg) -> int:
     with _store(cfg) as store:
-        job_id = store.create_job(args.topic)
-        print(f"job {job_id}: {args.topic}")
+        job_id = store.create_job(args.topic, channel=cfg.channel_slug)
+        print(f"job {job_id} on {cfg.describe()}")
+        print(f"  topic: {args.topic}")
         if args.run:
             run_job(cfg, store, job_id, options={"script_path": args.script})
             print(f"\nreview: {cfg.job_dir(job_id)}")
@@ -111,12 +114,64 @@ def cmd_show(args, cfg) -> int:
 
 def cmd_list(args, cfg) -> int:
     with _store(cfg) as store:
-        rows = store.list_jobs(args.limit)
+        scope = None if args.all else cfg.channel_slug
+        rows = store.list_jobs(args.limit, channel=scope)
         if not rows:
-            print("no jobs yet — try: yta new \"your topic\" --run")
+            where = "any channel" if args.all else f"channel '{cfg.channel_slug}'"
+            print(f"no jobs for {where} — try: ./run.sh new \"your topic\" --run")
             return 0
         for r in rows:
-            print(f"  {r['id']:>4}  {r['status']:<22} {(r['title'] or r['topic'])[:60]}")
+            print(f"  {r['id']:>4}  {r['channel']:<14} {r['status']:<20} "
+                  f"{(r['title'] or r['topic'])[:48]}")
+    return 0
+
+
+def cmd_channels(args, cfg) -> int:
+    names = channels_mod.available()
+    if not names:
+        print("No channels yet. Create one with:  ./run.sh new-channel <name>")
+        return 0
+    counts = {}
+    try:
+        first = channels_mod.load(names[0])
+        with _store(first) as store:
+            counts = store.channel_counts()
+    except Exception:  # noqa: BLE001 — listing must work before any job exists
+        pass
+    print(f"  {'channel':<18} {'style':<18} {'jobs':>5}  niche")
+    for name in names:
+        try:
+            c = channels_mod.load(name)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  {name:<18} (unreadable: {exc})")
+            continue
+        print(f"  {name:<18} {c.style_name:<18} {counts.get(name, 0):>5}  "
+              f"{c.get('channel.niche') or '-'}")
+    return 0
+
+
+def cmd_new_channel(args, cfg) -> int:
+    try:
+        path = channels_mod.scaffold(args.name, style=args.style)
+    except (FileExistsError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"created {path}")
+    print(f"  style: {args.style}")
+    print("  edit it to set the niche, then:")
+    print(f"    ./run.sh --channel {args.name} new \"your topic\" --run --script <script.json>")
+    return 0
+
+
+def cmd_styles(args, cfg) -> int:
+    for name in styles_mod.names():
+        st = styles_mod.get(name)
+        print(f"  {name}")
+        print(f"      motion   {st['video'].get('motion')}"
+              f"  · captions {'burned in' if st['captions'].get('burn_in') else 'off'}"
+              f"  · default visual {st['visuals'].get('default_kind')}")
+        print(f"      pacing   beat gap {st['voice'].get('beat_gap')}s"
+              f"  · accent {st['theme'].get('accent')}")
     return 0
 
 
@@ -156,6 +211,7 @@ def cmd_doctor(args, cfg) -> int:
         print(f"  {kind:<8} {', '.join(names)}")
 
     print("\nconfigured")
+    print(f"  channel  {cfg.describe()}")
     print(f"  script   {cfg.get('script.provider')}")
     print(f"  voice    {cfg.get('voice.provider')}")
     print(f"  video    {cfg.get('video.width')}x{cfg.get('video.height')} @ {cfg.get('video.fps')}fps")
@@ -169,7 +225,8 @@ def cmd_doctor(args, cfg) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="yta", description="Local prompt-to-video pipeline")
-    p.add_argument("--config", help="path to config.toml")
+    p.add_argument("--channel", help="channel profile under channels/")
+    p.add_argument("--config", help="explicit config file (bypasses channels/)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     n = sub.add_parser("new", help="create a job")
@@ -197,18 +254,57 @@ def build_parser() -> argparse.ArgumentParser:
 
     l = sub.add_parser("list", help="recent jobs")
     l.add_argument("--limit", type=int, default=20)
+    l.add_argument("--all", action="store_true", help="across every channel")
     l.set_defaults(func=cmd_list)
+
+    ch = sub.add_parser("channels", help="list channel profiles")
+    ch.set_defaults(func=cmd_channels, needs_config=False)
+
+    nc = sub.add_parser("new-channel", help="scaffold a channel profile")
+    nc.add_argument("name")
+    nc.add_argument("--style", default=styles_mod.DEFAULT_STYLE,
+                    choices=styles_mod.names())
+    nc.set_defaults(func=cmd_new_channel, needs_config=False)
+
+    st = sub.add_parser("styles", help="list visual styles")
+    st.set_defaults(func=cmd_styles, needs_config=False)
 
     doc = sub.add_parser("doctor", help="check the local toolchain")
     doc.set_defaults(func=cmd_doctor)
     return p
 
 
+def _resolve_config(args):
+    """Pick a configuration: explicit channel, explicit file, or the only channel."""
+    if getattr(args, "channel", None):
+        return channels_mod.load(args.channel)
+    if getattr(args, "config", None):
+        return config_mod.load(Path(args.config))
+
+    found = channels_mod.available()
+    if len(found) == 1:
+        return channels_mod.load(found[0])
+    if found:
+        raise FileNotFoundError(
+            "Several channels exist — name one with --channel.\n"
+            f"  Available: {', '.join(found)}"
+        )
+    # Fall back to a plain config.toml for single-channel setups.
+    return config_mod.load(None)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if not getattr(args, "needs_config", True):
+        # `channels`, `styles` and `new-channel` act on the channel set itself.
+        try:
+            return args.func(args, None)
+        except Exception as exc:  # noqa: BLE001
+            print(f"error: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return 1
     try:
-        cfg = config_mod.load(Path(args.config) if args.config else None)
-    except FileNotFoundError as exc:
+        cfg = _resolve_config(args)
+    except (FileNotFoundError, KeyError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     try:
