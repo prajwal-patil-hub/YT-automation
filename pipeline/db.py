@@ -310,6 +310,34 @@ class Store:
             )
         )
 
+    # --- approvals ------------------------------------------------------------
+    def set_approval(self, job_id: int, checkpoint: str, state: str, *,
+                     decision: str | None = None, message_id: int | None = None,
+                     notes: str | None = None) -> None:
+        self.conn.execute(
+            "INSERT INTO approvals (job_id, checkpoint, state, decision, message_id,"
+            " notes, decided_at) VALUES (?,?,?,?,?,?,?)"
+            " ON CONFLICT(job_id, checkpoint) DO UPDATE SET"
+            " state=excluded.state, decision=excluded.decision,"
+            " message_id=COALESCE(excluded.message_id, approvals.message_id),"
+            " notes=excluded.notes, decided_at=excluded.decided_at",
+            (job_id, checkpoint, state, decision, message_id, notes,
+             time.time() if state != "pending" else None),
+        )
+        self.conn.commit()
+
+    def get_approval(self, job_id: int, checkpoint: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM approvals WHERE job_id = ? AND checkpoint = ?",
+            (job_id, checkpoint),
+        ).fetchone()
+
+    def pending_approvals(self) -> list[sqlite3.Row]:
+        return list(self.conn.execute(
+            "SELECT a.*, j.channel, j.title, j.topic FROM approvals a"
+            " JOIN jobs j ON j.id = a.job_id"
+            " WHERE a.state = 'pending' ORDER BY a.job_id"))
+
     # --- events ---------------------------------------------------------------
     def log(self, job_id: int | None, level: str, message: str, stage: str | None = None) -> None:
         self.conn.execute(

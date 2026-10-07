@@ -22,6 +22,7 @@ from .db import Store
 from .models import STAGES
 from .providers import available
 from .runner import run_job
+from . import review as review_mod
 
 
 def _store(cfg) -> Store:
@@ -175,6 +176,58 @@ def cmd_styles(args, cfg) -> int:
     return 0
 
 
+def cmd_review(args, cfg) -> int:
+    """Send a finished job for approval."""
+    with _store(cfg) as store:
+        run_job(cfg, store, args.job_id, stages=["review"], force=True)
+    return 0
+
+
+def cmd_approvals(args, cfg) -> int:
+    with _store(cfg) as store:
+        rows = store.pending_approvals()
+        if not rows:
+            print("nothing awaiting a decision")
+            return 0
+        for r in rows:
+            print(f"  job {r['job_id']:>4}  {r['channel']:<14} {r['checkpoint']:<8} "
+                  f"{(r['title'] or r['topic'])[:46]}")
+    return 0
+
+
+def cmd_watch(args, cfg) -> int:
+    """Poll Telegram and resolve pending approvals."""
+    def announce(d) -> None:
+        print(f"  job {d.job_id}: {d.action} (user {d.user_id})")
+
+    print("watching for decisions — ctrl-c to stop")
+    try:
+        handled = review_mod.watch(cfg, once=args.once,
+                                   poll_timeout=args.poll_timeout,
+                                   on_decision=announce)
+    except KeyboardInterrupt:
+        print("\nstopped")
+        return 0
+    print(f"handled {handled} decision(s)")
+    return 0
+
+
+def cmd_publish(args, cfg) -> int:
+    with _store(cfg) as store:
+        approval = store.get_approval(args.job_id, "video")
+        if (not approval or approval["state"] != "approved") and not args.force_unapproved:
+            state = approval["state"] if approval else "never requested"
+            print(f"job {args.job_id} is not approved (state: {state}).", file=sys.stderr)
+            print("  Approve it in Telegram, or pass --force-unapproved to override.",
+                  file=sys.stderr)
+            return 1
+        if args.force_unapproved and (not approval or approval["state"] != "approved"):
+            store.set_approval(args.job_id, "video", "approved",
+                               decision="approve", notes="forced from the CLI")
+        run_job(cfg, store, args.job_id, stages=["publish"], force=True)
+    return 0
+
+
 def cmd_doctor(args, cfg) -> int:
     """Check everything the pipeline needs before a first run."""
     ok = True
@@ -205,6 +258,18 @@ def cmd_doctor(args, cfg) -> int:
             check(role, True, Path(theme.font_file(role)).name)
     except Exception as exc:  # noqa: BLE001
         check("fonts", False, str(exc))
+
+    print("\ncredentials (.env)")
+    import os
+    for label, var, why in (
+        ("telegram token", "TELEGRAM_BOT_TOKEN", "needed for the review gate"),
+        ("telegram allow-list", "TELEGRAM_ALLOWED_USER_ID", "REQUIRED — without it anyone can publish"),
+        ("youtube client id", "YOUTUBE_CLIENT_ID", "needed to publish"),
+        ("youtube secret", "YOUTUBE_CLIENT_SECRET", "needed to publish"),
+        ("youtube refresh token", "YOUTUBE_REFRESH_TOKEN", "needed to publish"),
+    ):
+        present = bool(os.environ.get(var, "").strip())
+        print(f"  [{'ok' if present else '--'}] {label:<22} {'set' if present else why}")
 
     print("\nproviders registered")
     for kind, names in available().items():
@@ -268,6 +333,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     st = sub.add_parser("styles", help="list visual styles")
     st.set_defaults(func=cmd_styles, needs_config=False)
+
+    rv = sub.add_parser("review", help="send a finished job for approval")
+    rv.add_argument("job_id", type=int)
+    rv.set_defaults(func=cmd_review)
+
+    ap = sub.add_parser("approvals", help="jobs awaiting a decision")
+    ap.set_defaults(func=cmd_approvals)
+
+    wt = sub.add_parser("watch", help="poll Telegram and resolve approvals")
+    wt.add_argument("--once", action="store_true", help="one poll, then exit")
+    wt.add_argument("--poll-timeout", type=int, default=30)
+    wt.set_defaults(func=cmd_watch)
+
+    pb = sub.add_parser("publish", help="upload an approved job to YouTube")
+    pb.add_argument("job_id", type=int)
+    pb.add_argument("--force-unapproved", action="store_true",
+                    help="bypass the approval gate (records a forced approval)")
+    pb.set_defaults(func=cmd_publish)
 
     doc = sub.add_parser("doctor", help="check the local toolchain")
     doc.set_defaults(func=cmd_doctor)

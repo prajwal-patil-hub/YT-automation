@@ -21,6 +21,8 @@ STAGES = [
     "assemble",
     "package",
     "preflight",
+    "review",
+    "publish",
 ]
 
 

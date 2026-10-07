@@ -67,7 +67,10 @@ proxy_crf    = 30
 block_on_fail = true    # a failing check stops the job before review
 
 [publish]
-privacy_status = "private"   # schedule rather than insta-publish
+privacy_status       = "private"   # schedule rather than insta-publish
+upload_captions      = true
+caption_language     = "en"
+# schedule_hours_ahead = 12        # set to schedule instead of publishing now
 
 [paths]
 work_dir  = "work"           # per-channel subdirectory is added automatically

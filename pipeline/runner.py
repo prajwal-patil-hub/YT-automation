@@ -16,8 +16,11 @@ from .db import Store
 from .models import STAGES, Script
 from .stages import (
     assemble_stage, captions_stage, package_stage, preflight_stage,
-    script_stage, visuals_stage, voice_stage,
+    publish_stage, review_stage, script_stage, visuals_stage, voice_stage,
 )
+
+# Stages excluded from a bare `run`, because they reach outside the machine.
+OPTIONAL_STAGES = {"review", "publish"}
 
 STAGE_FUNCS: dict[str, Callable[["StageContext"], None]] = {
     "script": script_stage.run,
@@ -27,6 +30,8 @@ STAGE_FUNCS: dict[str, Callable[["StageContext"], None]] = {
     "assemble": assemble_stage.run,
     "package": package_stage.run,
     "preflight": preflight_stage.run,
+    "review": review_stage.run,
+    "publish": publish_stage.run,
 }
 
 
@@ -101,7 +106,8 @@ def run_job(
     if job is None:
         raise ValueError(f"No job {job_id}")
 
-    wanted = stages or STAGES
+    # `review` needs Telegram credentials, so a default run stops before it.
+    wanted = stages or [s for s in STAGES if s not in OPTIONAL_STAGES]
     ctx = StageContext(
         cfg=cfg, store=store, job_id=job_id, topic=job["topic"],
         force=force, options=options or {}, quiet=quiet,
@@ -137,7 +143,12 @@ def run_job(
             ctx.log(detail, "error")
             raise
 
-    done = all(store.stage_status(job_id, s) == "done" for s in STAGES)
-    store.update_job(job_id, status="ready-for-review" if done else "partial")
+    # The rollup status describes progress through the core pipeline only.
+    # `review` and `publish` own the job's status once they run ("awaiting-review",
+    # "approved", "published"); overwriting that here would silently undo them.
+    core = [s for s in STAGES if s not in OPTIONAL_STAGES]
+    if any(name in core for name in wanted):
+        done = all(store.stage_status(job_id, s) == "done" for s in core)
+        store.update_job(job_id, status="ready-for-review" if done else "partial")
     ctx.stage = None
     return ctx

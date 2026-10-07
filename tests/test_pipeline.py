@@ -299,3 +299,231 @@ class TestPreflightReport(unittest.TestCase):
         r = Report()
         r.add("a", PASS); r.add("b", WARN, "minor")
         self.assertTrue(r.to_obj()["passed"])
+
+
+# --------------------------------------------------------------------------
+# Network clients. Neither API is reachable from the build environment, so
+# both are exercised against a fake transport that records what was sent.
+# --------------------------------------------------------------------------
+
+class FakeTransport:
+    """Records requests and replays queued responses."""
+
+    def __init__(self, responses=None):
+        from pipeline.util.http import Response
+        self.Response = Response
+        self.sent = []
+        self.responses = list(responses or [])
+
+    def push(self, status=200, body=b"{}", headers=None):
+        self.responses.append(self.Response(status, body, headers or {}))
+
+    def request(self, method, url, *, data=None, headers=None, timeout=60.0):
+        self.sent.append({"method": method, "url": url, "data": data,
+                          "headers": headers or {}})
+        if self.responses:
+            return self.responses.pop(0)
+        return self.Response(200, b'{"ok": true, "result": {}}', {})
+
+
+class TestTelegramClient(unittest.TestCase):
+    def _client(self, transport, **kw):
+        from pipeline.util.telegram import TelegramClient
+        return TelegramClient("TOKEN", transport=transport,
+                              allowed_user_ids=kw.pop("allowed", [42]), **kw)
+
+    def test_refuses_to_build_without_a_token(self):
+        from pipeline.util.telegram import TelegramClient, TelegramError
+        with self.assertRaises(TelegramError):
+            TelegramClient("")
+
+    def test_drops_callbacks_from_strangers(self):
+        """The bot is reachable by anyone who finds it. The allow-list is the
+        only thing between a stranger and the publish button."""
+        c = self._client(FakeTransport(), allowed=[42])
+        updates = [
+            {"update_id": 1, "callback_query": {
+                "id": "a", "from": {"id": 42}, "data": "j7:approve",
+                "message": {"message_id": 5, "chat": {"id": 42}}}},
+            {"update_id": 2, "callback_query": {
+                "id": "b", "from": {"id": 999}, "data": "j7:approve",
+                "message": {"message_id": 6, "chat": {"id": 999}}}},
+        ]
+        got = c.callbacks(updates)
+        self.assertEqual(len(got), 1)
+        self.assertEqual(got[0].user_id, 42)
+
+    def test_upload_limit_depends_on_endpoint(self):
+        from pipeline.util.telegram import PUBLIC_UPLOAD_LIMIT
+        public = self._client(FakeTransport())
+        local = self._client(FakeTransport(), api_base="http://localhost:8081")
+        self.assertEqual(public.upload_limit(), PUBLIC_UPLOAD_LIMIT)
+        self.assertGreater(local.upload_limit(), PUBLIC_UPLOAD_LIMIT * 10)
+        self.assertFalse(public.is_self_hosted)
+        self.assertTrue(local.is_self_hosted)
+
+    def test_oversized_video_is_refused_with_a_useful_message(self):
+        from pipeline.util.telegram import TelegramError
+        c = self._client(FakeTransport())
+        with tempfile.TemporaryDirectory() as d:
+            big = Path(d) / "big.mp4"
+            big.write_bytes(b"\0" * (51 * 1024 * 1024))
+            with self.assertRaises(TelegramError) as ctx:
+                c.send_video(1, big)
+        self.assertIn("self-hosted", str(ctx.exception))
+
+    def test_api_errors_are_raised_not_swallowed(self):
+        from pipeline.util.telegram import TelegramError
+        t = FakeTransport()
+        t.push(400, b'{"ok": false, "description": "chat not found"}')
+        with self.assertRaises(TelegramError) as ctx:
+            self._client(t).send_message(1, "hi")
+        self.assertIn("chat not found", str(ctx.exception))
+
+    def test_action_round_trip(self):
+        from pipeline.util.telegram import encode_action, decode_action
+        for job_id, action in ((1, "approve"), (4213, "redo-visuals")):
+            self.assertEqual(decode_action(encode_action(job_id, action)),
+                             (job_id, action))
+        self.assertIsNone(decode_action("nonsense"))
+        self.assertIsNone(decode_action("jx:approve"))
+
+    def test_callback_payloads_fit_telegrams_64_byte_cap(self):
+        from pipeline.util.telegram import encode_action
+        from pipeline.stages.review_stage import REDO_TARGETS
+        for action in list(REDO_TARGETS) + ["approve", "schedule", "reject"]:
+            self.assertLessEqual(len(encode_action(999999, action).encode()), 64)
+
+
+class TestReviewDecisions(unittest.TestCase):
+    def _setup(self):
+        from pipeline.util.telegram import TelegramClient
+        d = tempfile.TemporaryDirectory()
+        store = Store(Path(d.name) / "t.sqlite3")
+        job = store.create_job("t", channel="alpha")
+        store.set_approval(job, "video", "pending", message_id=11)
+        client = TelegramClient("T", transport=FakeTransport(), allowed_user_ids=[42])
+        return d, store, job, client
+
+    def _callback(self, job, action, user=42):
+        from pipeline.util.telegram import Callback, encode_action
+        return Callback("cb", user, 42, 11, encode_action(job, action), 1)
+
+    def test_approve_records_approval(self):
+        from pipeline.review import handle_callback
+        d, store, job, client = self._setup()
+        decision = handle_callback(store, client, self._callback(job, "approve"))
+        self.assertEqual(decision.action, "approve")
+        self.assertEqual(store.get_approval(job, "video")["state"], "approved")
+        self.assertEqual(store.get_job(job)["status"], "approved")
+        store.close(); d.cleanup()
+
+    def test_redo_triggers_the_right_stage(self):
+        from pipeline.review import handle_callback
+        d, store, job, client = self._setup()
+        seen = []
+        handle_callback(store, client, self._callback(job, "redo-visuals"),
+                        rerun=lambda j, s: seen.append((j, s)))
+        self.assertEqual(seen, [(job, "visuals")])
+        self.assertEqual(store.get_approval(job, "video")["state"], "redo")
+        store.close(); d.cleanup()
+
+    def test_unknown_and_malformed_actions_are_ignored(self):
+        from pipeline.review import handle_callback
+        from pipeline.util.telegram import Callback
+        d, store, job, client = self._setup()
+        self.assertIsNone(handle_callback(store, client,
+                                          Callback("c", 42, 42, 11, "garbage", 1)))
+        self.assertIsNone(handle_callback(store, client, self._callback(job, "launch-missiles")))
+        self.assertEqual(store.get_approval(job, "video")["state"], "pending")
+        store.close(); d.cleanup()
+
+    def test_callback_for_a_missing_job_is_ignored(self):
+        from pipeline.review import handle_callback
+        d, store, job, client = self._setup()
+        self.assertIsNone(handle_callback(store, client, self._callback(99999, "approve")))
+        store.close(); d.cleanup()
+
+
+class TestYouTubeClient(unittest.TestCase):
+    def _client(self, transport):
+        from pipeline.util.youtube import YouTubeClient
+        return YouTubeClient("id", "secret", "refresh", transport=transport)
+
+    def test_refuses_to_build_without_credentials(self):
+        from pipeline.util.youtube import YouTubeClient, YouTubeError
+        with self.assertRaises(YouTubeError) as ctx:
+            YouTubeClient("", "", "")
+        self.assertIn("client id", str(ctx.exception))
+
+    def test_expired_refresh_token_explains_the_seven_day_trap(self):
+        from pipeline.util.youtube import YouTubeError
+        t = FakeTransport()
+        t.push(400, b'{"error": "invalid_grant"}')
+        with self.assertRaises(YouTubeError) as ctx:
+            self._client(t).access_token()
+        self.assertIn("Testing", str(ctx.exception))
+
+    def test_resumable_upload_sends_every_chunk_in_order(self):
+        from pipeline.util.youtube import CHUNK
+        t = FakeTransport()
+        t.push(200, b'{"access_token": "AT"}')              # token refresh comes first
+        t.push(200, b"{}", {"Location": "https://upload.example/session"})
+        t.push(308, b"")                                    # first chunk accepted
+        t.push(200, b'{"id": "VID123", "status": {"privacyStatus": "private"}}')
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "v.mp4"
+            path.write_bytes(b"\xab" * (CHUNK + 2048))
+            result = self._client(t).upload_video(path, {"snippet": {}})
+
+        self.assertEqual(result.video_id, "VID123")
+        start = [s for s in t.sent if s["url"].startswith("https://www.googleapis.com/upload")][0]
+        self.assertEqual(start["headers"]["Authorization"], "Bearer AT")
+        self.assertEqual(start["headers"]["X-Upload-Content-Length"], str(CHUNK + 2048))
+
+        puts = [s for s in t.sent if s["method"] == "PUT"]
+        self.assertEqual(len(puts), 2)
+        self.assertEqual(puts[0]["headers"]["Content-Range"],
+                         f"bytes 0-{CHUNK - 1}/{CHUNK + 2048}")
+        self.assertEqual(puts[1]["headers"]["Content-Range"],
+                         f"bytes {CHUNK}-{CHUNK + 2047}/{CHUNK + 2048}")
+
+    def test_synthetic_media_flag_reaches_the_api_body(self):
+        from pipeline.util.youtube import build_video_body
+        on = build_video_body({"title": "t", "altered_or_synthetic_content": True})
+        off = build_video_body({"title": "t", "altered_or_synthetic_content": False})
+        self.assertTrue(on["status"]["containsSyntheticMedia"])
+        self.assertFalse(off["status"]["containsSyntheticMedia"])
+
+    def test_scheduling_forces_private_until_the_publish_time(self):
+        from pipeline.util.youtube import build_video_body
+        body = build_video_body({"title": "t", "privacy_status": "public"},
+                                publish_at="2026-12-01T09:00:00Z")
+        self.assertEqual(body["status"]["privacyStatus"], "private")
+        self.assertEqual(body["status"]["publishAt"], "2026-12-01T09:00:00Z")
+
+    def test_title_and_description_are_clamped_to_youtube_limits(self):
+        from pipeline.util.youtube import build_video_body
+        from pipeline import standards
+        body = build_video_body({"title": "x" * 300, "description": "y" * 9000})
+        self.assertEqual(len(body["snippet"]["title"]), standards.TITLE_MAX_CHARS)
+        self.assertEqual(len(body["snippet"]["description"]),
+                         standards.DESCRIPTION_MAX_CHARS)
+
+
+class TestTerminalStatusIsPreserved(unittest.TestCase):
+    """Regression: the runner's end-of-run rollup overwrote the status that
+    `review` and `publish` set, so a published job read "ready-for-review"."""
+
+    def test_optional_stage_runs_do_not_touch_the_rollup_status(self):
+        from pipeline.models import STAGES
+        from pipeline.runner import OPTIONAL_STAGES
+        core = [s for s in STAGES if s not in OPTIONAL_STAGES]
+
+        # A publish-only run must not intersect the core pipeline at all.
+        self.assertFalse(any(name in core for name in ["publish"]))
+        self.assertFalse(any(name in core for name in ["review"]))
+        # A normal run must.
+        self.assertTrue(any(name in core for name in STAGES))
+        self.assertIn("preflight", core)
+        self.assertNotIn("publish", core)

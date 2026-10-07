@@ -103,3 +103,47 @@ argument for Option A.
 - **Don't auto-post to other platforms in Phase 1.** Each platform has its own rules
   and its own failure modes. Long-form to YouTube first; the Shorts/Reels/TikTok
   clipping stage comes after the core loop is boring and reliable.
+
+---
+
+## Addendum — what was actually built (2026-10-07)
+
+### The disclosure flag is settable via the API
+
+`status.containsSyntheticMedia` was added to the Data API on **30 October 2024**
+and can be set on `videos.insert` and `videos.update`. So the derived flag does
+not need a manual trip to Studio: the pipeline computes it from the asset
+manifest and sends it with the upload. Verified in `build_video_body`.
+
+Also noted while checking: from **1 June 2026** the API moved to a granular
+quota system covering smaller sets of methods, starting with `videos.insert`
+and `search.list` — consistent with the upload-quota change recorded above.
+
+### Both clients are stdlib
+
+The official `google-api-python-client` chain pulls in `cryptography`, whose
+Rust bindings fail on some platforms (they fail in this project's build
+container). The refresh-token grant needs no signing, so the client here is
+plain `urllib` against the documented endpoints, with an injectable transport.
+Same for Telegram. The whole project still depends on nothing but Pillow.
+
+### One-time OAuth setup
+
+1. Google Cloud project → enable **YouTube Data API v3**.
+2. OAuth consent screen → **publish it**. While it is in Testing, refresh
+   tokens expire after 7 days and the unattended pipeline dies weekly.
+3. Credentials → **OAuth client ID** → *Desktop app*. Note the client id and
+   secret.
+4. Run the one-time local flow to obtain a refresh token, and put all three in
+   `.env` as `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`,
+   `YOUTUBE_REFRESH_TOKEN`.
+5. Do one **manual** upload through the browser first. It verifies the channel
+   and reveals whether uploads from an un-audited API project are being locked
+   to private.
+
+### Publishing is gated on a recorded approval
+
+`publish` reads the approval from the database, not from the Telegram callback
+payload. A forged or replayed button press cannot publish, and an upload cannot
+happen by accident during a re-run. `--force-unapproved` exists for manual use
+and records that it was forced.

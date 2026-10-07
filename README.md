@@ -144,14 +144,45 @@ Three properties worth knowing:
   provenance, so `altered_or_synthetic_content` is a SQL query over the
   manifest rather than something a human has to set.
 
+## The review gate and publishing
+
+The pipeline is end to end. `run` stops after `preflight`; the last two stages
+reach outside the machine and are run explicitly.
+
+```bash
+./run.sh --channel <c> review 1      # send to Telegram for approval
+./run.sh watch                       # poll for the decision (long-running)
+./run.sh approvals                   # what is awaiting a decision
+./run.sh --channel <c> publish 1     # upload, once approved
+```
+
+The review message carries the **preflight result first** — the machine has
+already checked everything objectively checkable, so your attention goes to
+judgement. Buttons are granular (`Visuals`, `Voice`, `Script`, `Re-assemble`)
+because with only approve and reject a 90%-good video costs a whole re-render;
+a redo rewinds exactly one stage and everything after it.
+
+Three things are deliberate:
+
+- **An allow-list is mandatory.** `watch` refuses to start without
+  `TELEGRAM_ALLOWED_USER_ID`. The bot is reachable by anyone who finds it, and
+  that list is all that stands between a stranger and your publish button.
+- **Publishing reads the approval from the database**, never from the callback
+  payload, so a replayed or forged press cannot publish.
+- **The review stage does not block.** It sends, records the approval as
+  pending, and returns. An approval that arrives eight hours later is normal.
+
+Credentials go in `.env` (see `.env.example`); `doctor` reports which are set
+without printing them. Both API clients are plain stdlib HTTP with an
+injectable transport, so the whole project still depends on nothing but Pillow.
+
 ## What is not built yet
 
 | | |
 |---|---|
-| Telegram review gate | Next increment. Needs a bot token, a whitelisted user id, and a self-hosted Bot API server for the 50 MB cap. |
-| YouTube publishing | After the gate. Do one **manual** upload first — it proves OAuth and catches uploads silently locked to private. |
-| Forced-alignment captions | Timing is currently estimated from known script text, which is decent but drifts in long beats. WhisperX is the upgrade. |
+| Forced-alignment captions | Timing is estimated from known script text, which is decent but drifts in long beats. WhisperX is the upgrade. |
 | Generated stills (Option B) | The provider seam exists and is documented; nothing plugged into it. |
+| Hero-scale character art | See `docs/11` — procedural primitives read at distance and fail up close. |
 
 ## Read in this order
 
