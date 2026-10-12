@@ -134,9 +134,20 @@ Same for Telegram. The whole project still depends on nothing but Pillow.
    tokens expire after 7 days and the unattended pipeline dies weekly.
 3. Credentials → **OAuth client ID** → *Desktop app*. Note the client id and
    secret.
-4. Run the one-time local flow to obtain a refresh token, and put all three in
-   `.env` as `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`,
-   `YOUTUBE_REFRESH_TOKEN`.
+4. Run `./run.sh auth youtube --client-id … --client-secret …`. It opens
+   Google's consent screen, receives the redirect on a throwaway loopback port,
+   and writes all three values to `.env`.
+
+The flow uses **PKCE** and a random `state`, both checked on the redirect, so a
+stray or forged redirect cannot hand the tool someone else's code, and no
+secret ever travels in a URL. It requests `access_type=offline` together with
+`prompt=consent`: without both, Google may return no refresh token at all,
+which quietly makes unattended publishing impossible.
+
+If Google returns no refresh token, the account has already granted this client
+and Google is reusing the earlier grant. Revoke it at
+<https://myaccount.google.com/permissions> and run the command again — the error
+message says so too.
 5. Do one **manual** upload through the browser first. It verifies the channel
    and reveals whether uploads from an un-audited API project are being locked
    to private.

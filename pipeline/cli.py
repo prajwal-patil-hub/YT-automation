@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -23,6 +24,7 @@ from .models import STAGES
 from .providers import available
 from .runner import run_job
 from . import review as review_mod
+from . import auth as auth_mod
 
 
 def _store(cfg) -> Store:
@@ -236,6 +238,76 @@ def cmd_shorts(args, cfg) -> int:
     return 0
 
 
+def _env_path() -> Path:
+    from . import config as _c
+    return _c.REPO_ROOT / ".env"
+
+
+def cmd_auth_youtube(args, cfg) -> int:
+    client_id = args.client_id or os.environ.get("YOUTUBE_CLIENT_ID", "")
+    secret = args.client_secret or os.environ.get("YOUTUBE_CLIENT_SECRET", "")
+    if not client_id or not secret:
+        print("Need a Google Cloud OAuth client of type 'Desktop app'.", file=sys.stderr)
+        print("  Pass --client-id and --client-secret, or set them in .env.", file=sys.stderr)
+        print("  Setup steps are in docs/08.", file=sys.stderr)
+        return 2
+    try:
+        tokens = auth_mod.youtube_flow(client_id, secret,
+                                       open_browser=not args.no_browser)
+    except auth_mod.AuthError as exc:
+        print(f"\nerror: {exc}", file=sys.stderr)
+        return 1
+
+    changed = auth_mod.write_env({
+        "YOUTUBE_CLIENT_ID": client_id,
+        "YOUTUBE_CLIENT_SECRET": secret,
+        "YOUTUBE_REFRESH_TOKEN": tokens["refresh_token"],
+    }, _env_path())
+    print(f"\nsaved to {_env_path()}: {', '.join(changed)}")
+    print(f"  scopes granted: {tokens.get('scope', '(not reported)')}")
+    print("  the refresh token is not printed here — it is a credential")
+    print("\nNext: publish the OAuth consent screen, or this token expires in 7 days.")
+    return 0
+
+
+def cmd_auth_telegram(args, cfg) -> int:
+    token = args.token or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        print("Need a bot token from @BotFather. Pass --token or set "
+              "TELEGRAM_BOT_TOKEN in .env.", file=sys.stderr)
+        return 2
+    try:
+        me = auth_mod.telegram_check(token)
+    except Exception as exc:  # noqa: BLE001
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"bot: @{me.get('username')} ({me.get('first_name')})")
+
+    people = auth_mod.telegram_find_user(token)
+    if not people:
+        print("\nNo messages yet. Send your bot any message, then run this again —")
+        print("Telegram only reveals your user id once you have written to the bot.")
+        return 1
+
+    if len(people) > 1 and not args.user_id:
+        print("\nSeveral people have messaged this bot:")
+        for p in people:
+            print(f"  {p['id']}  @{p.get('username') or '-'}  {p.get('first_name') or ''}")
+        print("\nRe-run with --user-id <id> to pick one.")
+        return 1
+
+    chosen = next((p for p in people if str(p["id"]) == str(args.user_id)), people[0])
+    changed = auth_mod.write_env({
+        "TELEGRAM_BOT_TOKEN": token,
+        "TELEGRAM_ALLOWED_USER_ID": str(chosen["id"]),
+        "TELEGRAM_CHAT_ID": str(chosen["chat_id"]),
+    }, _env_path())
+    print(f"\nallow-listed {chosen['id']} (@{chosen.get('username') or '-'})")
+    print(f"saved to {_env_path()}: {', '.join(changed)}")
+    print("\nOnly this id can drive the bot. Everyone else is ignored.")
+    return 0
+
+
 def cmd_doctor(args, cfg) -> int:
     """Check everything the pipeline needs before a first run."""
     ok = True
@@ -363,6 +435,21 @@ def build_parser() -> argparse.ArgumentParser:
     sh = sub.add_parser("shorts", help="cut vertical clips from a finished job")
     sh.add_argument("job_id", type=int)
     sh.set_defaults(func=cmd_shorts)
+
+    au = sub.add_parser("auth", help="one-time credential setup")
+    ausub = au.add_subparsers(dest="service", required=True)
+
+    ayt = ausub.add_parser("youtube", help="get a YouTube refresh token")
+    ayt.add_argument("--client-id")
+    ayt.add_argument("--client-secret")
+    ayt.add_argument("--no-browser", action="store_true",
+                     help="print the URL instead of opening it")
+    ayt.set_defaults(func=cmd_auth_youtube, needs_config=False)
+
+    atg = ausub.add_parser("telegram", help="verify the bot and allow-list yourself")
+    atg.add_argument("--token")
+    atg.add_argument("--user-id", help="pick one when several have messaged the bot")
+    atg.set_defaults(func=cmd_auth_telegram, needs_config=False)
 
     doc = sub.add_parser("doctor", help="check the local toolchain")
     doc.set_defaults(func=cmd_doctor)

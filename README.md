@@ -172,8 +172,21 @@ Three things are deliberate:
 - **The review stage does not block.** It sends, records the approval as
   pending, and returns. An approval that arrives eight hours later is normal.
 
-Credentials go in `.env` (see `.env.example`); `doctor` reports which are set
-without printing them. Both API clients are plain stdlib HTTP with an
+### Credential setup
+
+```bash
+./run.sh auth telegram --token <from @BotFather>   # verifies + allow-lists you
+./run.sh auth youtube --client-id … --client-secret …
+```
+
+`auth telegram` confirms the bot, then reads pending updates to find your user
+id — Telegram only reveals it once you have messaged the bot — and writes the
+allow-list. `auth youtube` runs Google's loopback consent flow with PKCE on a
+throwaway local port, checks the `state` on the redirect, exchanges the code and
+saves the refresh token. Neither prints a secret; both update `.env` in place
+and leave it owner-readable only.
+
+`doctor` reports which credentials are set, without printing them. Both API clients are plain stdlib HTTP with an
 injectable transport, so the whole project still depends on nothing but Pillow.
 
 ## Shorts

@@ -598,3 +598,112 @@ class TestCaptionScaling(unittest.TestCase):
             style = [l for l in p.read_text().splitlines() if l.startswith("Style:")][0]
             margin_l = int(style.split(",")[19])
             self.assertEqual(margin_l, int(1080 * 0.10))
+
+
+class TestPKCE(unittest.TestCase):
+    def test_challenge_is_unpadded_s256_of_the_verifier(self):
+        import base64, hashlib
+        from pipeline.auth import make_verifier, challenge_for
+        v = make_verifier()
+        expected = base64.urlsafe_b64encode(
+            hashlib.sha256(v.encode("ascii")).digest()).rstrip(b"=").decode()
+        self.assertEqual(challenge_for(v), expected)
+        self.assertNotIn("=", challenge_for(v))
+
+    def test_verifier_length_is_within_rfc7636(self):
+        from pipeline.auth import make_verifier
+        for _ in range(5):
+            self.assertTrue(43 <= len(make_verifier()) <= 128)
+
+    def test_verifiers_are_not_reused(self):
+        from pipeline.auth import make_verifier
+        self.assertEqual(len({make_verifier() for _ in range(20)}), 20)
+
+    def test_auth_url_requests_a_refresh_token(self):
+        """Without access_type=offline AND prompt=consent, Google may return no
+        refresh token at all, which makes the unattended pipeline impossible."""
+        from pipeline.auth import build_auth_url, make_verifier, SCOPES
+        import urllib.parse
+        url = build_auth_url("CID", "http://127.0.0.1:1234",
+                             verifier=make_verifier(), state="ST")
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        self.assertEqual(q["access_type"], ["offline"])
+        self.assertEqual(q["prompt"], ["consent"])
+        self.assertEqual(q["code_challenge_method"], ["S256"])
+        self.assertEqual(q["state"], ["ST"])
+        for scope in SCOPES:
+            self.assertIn(scope, q["scope"][0])
+        self.assertNotIn("client_secret", q)   # the secret never rides in a URL
+
+
+class TestTokenExchange(unittest.TestCase):
+    def test_missing_refresh_token_explains_the_cause(self):
+        from pipeline.auth import exchange_code, AuthError
+        t = FakeTransport()
+        t.push(200, b'{"access_token": "AT"}')      # no refresh_token
+        with self.assertRaises(AuthError) as ctx:
+            exchange_code("c", "s", "code", "http://127.0.0.1:1", "v", transport=t)
+        self.assertIn("myaccount.google.com/permissions", str(ctx.exception))
+
+    def test_successful_exchange_sends_the_verifier(self):
+        from pipeline.auth import exchange_code
+        import urllib.parse
+        t = FakeTransport()
+        t.push(200, b'{"refresh_token": "RT", "access_token": "AT"}')
+        out = exchange_code("cid", "sec", "the-code", "http://127.0.0.1:1",
+                            "the-verifier", transport=t)
+        self.assertEqual(out["refresh_token"], "RT")
+        sent = urllib.parse.parse_qs(t.sent[0]["data"].decode())
+        self.assertEqual(sent["code_verifier"], ["the-verifier"])
+        self.assertEqual(sent["grant_type"], ["authorization_code"])
+
+
+class TestEnvWriter(unittest.TestCase):
+    def test_updates_in_place_and_preserves_everything_else(self):
+        """Appending instead of replacing would leave two of the same key, and
+        the stale one can win depending on who reads it."""
+        from pipeline.auth import write_env
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / ".env"
+            p.write_text("# a comment\nKEEP=yes\nTOKEN=old\n\n", encoding="utf-8")
+            changed = write_env({"TOKEN": "new", "EXTRA": "added"}, p)
+            text = p.read_text()
+            self.assertIn("# a comment", text)
+            self.assertIn("KEEP=yes", text)
+            self.assertIn("TOKEN=new", text)
+            self.assertNotIn("TOKEN=old", text)
+            self.assertIn("EXTRA=added", text)
+            self.assertEqual(text.count("TOKEN="), 1)
+            self.assertCountEqual(changed, ["TOKEN", "EXTRA"])
+
+    def test_creates_the_file_owner_only(self):
+        from pipeline.auth import write_env
+        import stat
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / ".env"
+            write_env({"SECRET": "s"}, p)
+            self.assertEqual(stat.S_IMODE(p.stat().st_mode) & 0o077, 0,
+                             "a file holding credentials must not be group/world readable")
+
+
+class TestTelegramUserDiscovery(unittest.TestCase):
+    def test_extracts_sender_and_chat_from_updates(self):
+        from pipeline.auth import telegram_find_user
+        t = FakeTransport()
+        t.push(200, json.dumps({"ok": True, "result": [
+            {"update_id": 1, "message": {"message_id": 1,
+             "from": {"id": 42, "username": "me", "first_name": "Me"},
+             "chat": {"id": 42}}},
+            {"update_id": 2, "message": {"message_id": 2,
+             "from": {"id": 42, "username": "me"}, "chat": {"id": 42}}},
+        ]}).encode())
+        people = telegram_find_user("TOKEN", transport=t)
+        self.assertEqual(len(people), 1)          # deduplicated
+        self.assertEqual(people[0]["id"], 42)
+        self.assertEqual(people[0]["chat_id"], 42)
+
+    def test_no_messages_yields_nobody(self):
+        from pipeline.auth import telegram_find_user
+        t = FakeTransport()
+        t.push(200, b'{"ok": true, "result": []}')
+        self.assertEqual(telegram_find_user("TOKEN", transport=t), [])
