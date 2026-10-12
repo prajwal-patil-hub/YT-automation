@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .. import standards
+
 
 def build(
     layers: list[dict], *, width: int, height: int, fps: int,
-    rate: float = 0.05, overscan: float = 1.18,
+    rate: float = 0.05, overscan: float | None = None,
 ) -> tuple[list[str], str]:
     """Return (ffmpeg input args, filter_complex) for a layered parallax scene.
 
@@ -20,6 +22,8 @@ def build(
     """
     if not layers:
         raise ValueError("parallax.build called with no layers")
+    if overscan is None:
+        overscan = standards.MOTION_OVERSCAN
 
     ow, oh = int(width * overscan), int(height * overscan)
     inputs: list[str] = []

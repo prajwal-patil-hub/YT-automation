@@ -78,7 +78,8 @@ def _segment(ctx, beat, out: Path) -> Path:
             f"format=yuv420p"
         )
     else:  # "drift" — a crop-window pan. Smooth, and cheaper than zoompan.
-        over_w, over_h = int(w * 1.2), int(h * 1.2)
+        over = standards.MOTION_OVERSCAN
+        over_w, over_h = int(w * over), int(h * over)
         vf = (
             f"scale={over_w}:{over_h},"
             f"crop={w}:{h}"

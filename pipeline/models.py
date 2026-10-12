@@ -23,6 +23,7 @@ STAGES = [
     "preflight",
     "review",
     "publish",
+    "shorts",
 ]
 
 

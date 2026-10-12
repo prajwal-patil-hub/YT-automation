@@ -278,6 +278,19 @@ class ColourVisual(_CardBase):
         )
 
 
+def resolve_kind(intent, default_kind: str) -> str:
+    """Which intent kind a beat should render as, given the channel default.
+
+    A beat that names nothing takes the channel's default. A beat that named
+    something keeps it. Both the long-form and the Shorts stage call this, so a
+    clip cannot render differently from the video it was cut from.
+    """
+    kind = intent.kind or default_kind
+    if kind == "card" and not intent.spec and default_kind != "card":
+        return default_kind
+    return kind
+
+
 # Intent kind -> provider name. Built once from each provider's declared kinds.
 def kind_map() -> dict[str, str]:
     mapping: dict[str, str] = {}

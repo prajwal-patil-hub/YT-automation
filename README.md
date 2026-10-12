@@ -176,6 +176,22 @@ Credentials go in `.env` (see `.env.example`); `doctor` reports which are set
 without printing them. Both API clients are plain stdlib HTTP with an
 injectable transport, so the whole project still depends on nothing but Pillow.
 
+## Shorts
+
+```bash
+./run.sh --channel <c> shorts 1      # cut vertical clips from a finished job
+```
+
+Clips are **re-rendered from the original sources, not cropped out of the
+master**. Cropping 16:9 to 9:16 throws away about 60% of the frame and cuts
+text in half; because the pipeline still holds every beat's audio and visual
+intent, it composes a proper vertical frame instead.
+
+Captions are burned in for Shorts even when the long form has them off, since
+Shorts are watched muted first, and they sit above the subscribe row rather
+than under it. Length is capped at YouTube's 3-minute ceiling, which counts
+burned-in intros and outros.
+
 ## What is not built yet
 
 | | |

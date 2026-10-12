@@ -7,7 +7,7 @@ recorded in the asset manifest with its provenance.
 from __future__ import annotations
 
 from ..providers import ProviderUnavailable, get_visual
-from ..providers.visuals import kind_map
+from ..providers.visuals import kind_map, resolve_kind
 
 
 def run(ctx) -> None:
@@ -32,11 +32,7 @@ def run(ctx) -> None:
 
     default_kind = ctx.cfg.get("visuals.default_kind", "card")
     for beat in ctx.script.beats:
-        # A beat that names no kind gets the channel's default, so the same
-        # script can be rendered by any channel in any style.
-        kind = beat.visual.kind or default_kind
-        if kind == "card" and not beat.visual.spec and default_kind != "card":
-            kind = default_kind
+        kind = resolve_kind(beat.visual, default_kind)
         name = mapping.get(kind, mapping.get(default_kind, "colour"))
         out = vis_dir / f"beat-{beat.index:03d}.png"
         beat_ctx = {

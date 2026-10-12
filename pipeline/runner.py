@@ -16,11 +16,12 @@ from .db import Store
 from .models import STAGES, Script
 from .stages import (
     assemble_stage, captions_stage, package_stage, preflight_stage,
-    publish_stage, review_stage, script_stage, visuals_stage, voice_stage,
+    publish_stage, review_stage, script_stage, shorts_stage, visuals_stage,
+    voice_stage,
 )
 
 # Stages excluded from a bare `run`, because they reach outside the machine.
-OPTIONAL_STAGES = {"review", "publish"}
+OPTIONAL_STAGES = {"review", "publish", "shorts"}
 
 STAGE_FUNCS: dict[str, Callable[["StageContext"], None]] = {
     "script": script_stage.run,
@@ -32,6 +33,7 @@ STAGE_FUNCS: dict[str, Callable[["StageContext"], None]] = {
     "preflight": preflight_stage.run,
     "review": review_stage.run,
     "publish": publish_stage.run,
+    "shorts": shorts_stage.run,
 }
 
 

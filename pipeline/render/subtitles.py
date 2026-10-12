@@ -81,13 +81,17 @@ def group_words(words: Sequence[Word], max_chars: int = 42, max_words: int = 7) 
 
 def _ass_header(width: int, height: int, style: dict) -> str:
     font = style.get("font", "DejaVu Sans")
-    size = style.get("size", max(36, int(height * 0.052)))
+    # Scale off the SHORT edge. Scaling off height made captions on a
+    # 1080x1920 vertical frame 99px wide-on-a-1080-frame, which overflowed.
+    short_edge = min(width, height)
+    size = style.get("size", max(32, int(short_edge * 0.052)))
     primary = style.get("primary", "&H00FFFFFF")      # unsung / base text
     highlight = style.get("highlight", "&H00E4C049")  # sung word (BGR!)
     outline = style.get("outline", "&H00101418")
     # The player draws its progress bar over the bottom of the frame, so
     # captions sit clear of it rather than merely near it.
     margin_v = style.get("margin_v", int(height * standards.CAPTION_BOTTOM_MARGIN))
+    side = style.get("margin_h", int(width * standards.TITLE_SAFE_MARGIN))
     return f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
@@ -97,7 +101,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Karaoke,{font},{size},{highlight},{primary},{outline},{outline},-1,0,0,0,100,100,0,0,1,{style.get('border', 4)},0,2,60,60,{margin_v},1
+Style: Karaoke,{font},{size},{highlight},{primary},{outline},{outline},-1,0,0,0,100,100,0,0,1,{style.get('border', 4)},0,2,{side},{side},{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

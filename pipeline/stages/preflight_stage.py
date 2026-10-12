@@ -219,6 +219,28 @@ def _check_safe_areas(ctx, report: Report) -> None:
                    f"all content inside {int(standards.TITLE_SAFE_MARGIN * 100)}% margins")
 
 
+def _check_motion_safety(ctx, report: Report) -> None:
+    """Camera motion must not undo the title-safe guarantee.
+
+    The safe-area check inspects the source frames, but the assembler then
+    scales them up and pans a crop window across. If the overscan is larger
+    than the margin buys back, content that passed the source check still
+    leaves the screen — which is exactly what happened before this check
+    existed.
+    """
+    motion = ctx.cfg.get("video.motion", "none")
+    if motion == "none":
+        report.add("motion vs safe area", PASS, "no camera move")
+        return
+    over = standards.MOTION_OVERSCAN
+    if standards.motion_is_safe(over):
+        report.add("motion vs safe area", PASS,
+                   f"{motion} at overscan {over} keeps safe content on screen")
+    else:
+        report.add("motion vs safe area", FAIL,
+                   f"{motion} at overscan {over} pushes title-safe content off frame")
+
+
 def _check_captions(ctx, report: Report, duration: float) -> None:
     if not ctx.srt_path.exists():
         report.add("caption track", FAIL, "no .srt was written")
@@ -329,6 +351,7 @@ def run(ctx) -> None:
         _check_captions(ctx, report, duration)
     _check_pacing(ctx, report)
     _check_safe_areas(ctx, report)
+    _check_motion_safety(ctx, report)
     _check_metadata(ctx, report)
 
     reused = ctx.store.reused_assets(ctx.job_id)

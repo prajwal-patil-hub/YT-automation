@@ -527,3 +527,74 @@ class TestTerminalStatusIsPreserved(unittest.TestCase):
         self.assertTrue(any(name in core for name in STAGES))
         self.assertIn("preflight", core)
         self.assertNotIn("publish", core)
+
+
+class TestMotionSafety(unittest.TestCase):
+    """Regression: drift was scaling frames 1.18x and panning a crop window,
+    which pushed title-safe content off screen on every video. The source-frame
+    safe-area check could not see it, because the damage happens afterwards."""
+
+    def test_the_shipped_overscan_preserves_title_safe(self):
+        from pipeline import standards
+        self.assertTrue(standards.motion_is_safe(standards.MOTION_OVERSCAN))
+
+    def test_the_old_overscan_is_recognised_as_unsafe(self):
+        from pipeline import standards
+        for bad in (1.12, 1.18, 1.20):
+            self.assertFalse(standards.motion_is_safe(bad), f"{bad} should be unsafe")
+
+    def test_boundary_matches_the_derivation(self):
+        from pipeline import standards
+        # safe*k - (k-1) > 0  =>  k < 1/(1-safe) = 1.111… at a 10% margin
+        self.assertTrue(standards.motion_is_safe(1.10))
+        self.assertFalse(standards.motion_is_safe(1.12))
+
+
+class TestKindResolution(unittest.TestCase):
+    """The Shorts stage had its own copy of this logic and had drifted, so a
+    clip rendered differently from the video it was cut from."""
+
+    def test_empty_intent_takes_the_channel_default(self):
+        from pipeline.providers.visuals import resolve_kind
+        self.assertEqual(resolve_kind(VisualIntent(), "scene"), "scene")
+        self.assertEqual(resolve_kind(VisualIntent(), "layered"), "layered")
+
+    def test_explicit_intent_wins_over_the_default(self):
+        from pipeline.providers.visuals import resolve_kind
+        self.assertEqual(resolve_kind(VisualIntent("chart", {"data": []}), "scene"), "chart")
+        self.assertEqual(resolve_kind(VisualIntent("card", {"title": "x"}), "scene"), "card")
+
+    def test_both_stages_resolve_identically(self):
+        import inspect
+        from pipeline.stages import visuals_stage, shorts_stage
+        for mod in (visuals_stage, shorts_stage):
+            self.assertIn("resolve_kind", inspect.getsource(mod),
+                          f"{mod.__name__} must share the one definition")
+
+
+class TestCaptionScaling(unittest.TestCase):
+    def test_font_scales_off_the_short_edge_not_the_long_one(self):
+        """Scaling off height made a vertical frame's captions 99px on a
+        1080-wide frame, which overflowed horizontally."""
+        import re
+        with tempfile.TemporaryDirectory() as d:
+            beats = [("some narration here", 0.0, 3.0)]
+            land = Path(d) / "l.ass"
+            vert = Path(d) / "v.ass"
+            subtitles.write_ass(land, beats, width=1920, height=1080)
+            subtitles.write_ass(vert, beats, width=1080, height=1920)
+
+            def font_size(p):
+                line = [l for l in p.read_text().splitlines() if l.startswith("Style:")][0]
+                return int(line.split(",")[2])
+
+            self.assertEqual(font_size(land), font_size(vert))
+            self.assertLess(font_size(vert), 1080 * 0.08)
+
+    def test_side_margins_scale_with_width(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "v.ass"
+            subtitles.write_ass(p, [("x", 0.0, 1.0)], width=1080, height=1920)
+            style = [l for l in p.read_text().splitlines() if l.startswith("Style:")][0]
+            margin_l = int(style.split(",")[19])
+            self.assertEqual(margin_l, int(1080 * 0.10))

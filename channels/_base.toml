@@ -63,6 +63,12 @@ make_proxy   = true
 proxy_height = 720           # keeps the review copy under Telegram's 50 MB cap
 proxy_crf    = 30
 
+[shorts]
+enabled        = true
+count          = 1          # clips to cut per video
+target_seconds = 50         # aim; the hard ceiling is 180s
+max_seconds    = 180
+
 [preflight]
 block_on_fail = true    # a failing check stops the job before review
 

@@ -228,6 +228,14 @@ def cmd_publish(args, cfg) -> int:
     return 0
 
 
+def cmd_shorts(args, cfg) -> int:
+    """Cut vertical clips from a finished job."""
+    with _store(cfg) as store:
+        run_job(cfg, store, args.job_id, stages=["shorts"], force=True)
+        print(f"\noutput: {cfg.job_dir(args.job_id) / 'shorts'}")
+    return 0
+
+
 def cmd_doctor(args, cfg) -> int:
     """Check everything the pipeline needs before a first run."""
     ok = True
@@ -351,6 +359,10 @@ def build_parser() -> argparse.ArgumentParser:
     pb.add_argument("--force-unapproved", action="store_true",
                     help="bypass the approval gate (records a forced approval)")
     pb.set_defaults(func=cmd_publish)
+
+    sh = sub.add_parser("shorts", help="cut vertical clips from a finished job")
+    sh.add_argument("job_id", type=int)
+    sh.set_defaults(func=cmd_shorts)
 
     doc = sub.add_parser("doctor", help="check the local toolchain")
     doc.set_defaults(func=cmd_doctor)

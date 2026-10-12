@@ -38,6 +38,19 @@ PLAYER_UI_BOTTOM = 0.08
 # hovering viewer never has the progress bar land on the words.
 CAPTION_BOTTOM_MARGIN = 0.12
 
+# Camera motion on a still works by scaling the frame up and panning a crop
+# window across it. That window can sit anywhere in the slack, so content at
+# the safe margin is pushed off-frame unless the slack is smaller than the
+# margin buys back:  safe*overscan - (overscan-1) > 0.
+# At a 10% margin that caps overscan just under 1.11; 1.08 leaves headroom.
+MOTION_OVERSCAN = 1.08
+
+
+def motion_is_safe(overscan: float, margin: float = TITLE_SAFE_MARGIN) -> bool:
+    """Does a pan at this overscan keep title-safe content on screen?"""
+    return margin * overscan - (overscan - 1.0) > 0
+
+
 # --- Pacing -----------------------------------------------------------------
 # A single unchanging frame loses attention in any niche. This is the longest
 # one beat may hold without the visual changing. Generous on purpose: calm
@@ -49,6 +62,37 @@ MAX_HOOK_SECONDS = 20.0
 # Below this, a beat is usually a fragment that should be merged with its
 # neighbour — it produces a visual cut with no time to register.
 MIN_BEAT_SECONDS = 1.5
+
+# --- Vertical / Shorts ------------------------------------------------------
+# The Shorts ceiling rose from 60 seconds to 3 minutes in October 2024, and it
+# counts burned-in intros and outros, so a 2:58 clip with a 5-second end card
+# is over.
+SHORTS_MAX_SECONDS = 180.0
+# Shorter still tends to perform better; this is the default target, not a limit.
+SHORTS_TARGET_SECONDS = 50.0
+SHORTS_WIDTH = 1080
+SHORTS_HEIGHT = 1920
+# The Shorts player draws its own furniture over the frame: the subscribe row
+# and title along the bottom, the engagement icons up the right, the progress
+# bar across the top. Expressed as fractions of the 1080x1920 frame.
+SHORTS_UI_BOTTOM = 380 / 1920      # ~0.198
+SHORTS_UI_RIGHT = 140 / 1080       # ~0.130
+SHORTS_UI_TOP = 100 / 1920         # ~0.052
+# Captions sit above the subscribe row with a margin of their own.
+SHORTS_CAPTION_BOTTOM_MARGIN = 0.235
+
+
+def shorts_safe_box() -> tuple[int, int, int, int]:
+    """(left, top, right, bottom) of the usable area inside the Shorts UI."""
+    w, h = SHORTS_WIDTH, SHORTS_HEIGHT
+    margin = int(w * TITLE_SAFE_MARGIN)
+    return (
+        margin,
+        int(h * SHORTS_UI_TOP) + margin,
+        w - int(w * SHORTS_UI_RIGHT),
+        h - int(h * SHORTS_UI_BOTTOM),
+    )
+
 
 # --- Metadata ---------------------------------------------------------------
 TITLE_MAX_CHARS = 100          # hard YouTube limit
