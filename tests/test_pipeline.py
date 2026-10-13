@@ -707,3 +707,52 @@ class TestTelegramUserDiscovery(unittest.TestCase):
         t = FakeTransport()
         t.push(200, b'{"ok": true, "result": []}')
         self.assertEqual(telegram_find_user("TOKEN", transport=t), [])
+
+
+class TestTitleVariantGrammar(unittest.TestCase):
+    """A generated title goes straight onto a live video, so "1 Minutes" is a
+    real defect rather than a cosmetic one."""
+
+    def test_singular_and_plural(self):
+        from pipeline.stages.package_stage import _minutes_phrase
+        self.assertEqual(_minutes_phrase(55), "1 Minute")
+        self.assertEqual(_minutes_phrase(90), "2 Minutes")
+        self.assertEqual(_minutes_phrase(600), "10 Minutes")
+
+    def test_never_zero_minutes(self):
+        from pipeline.stages.package_stage import _minutes_phrase
+        self.assertEqual(_minutes_phrase(3), "1 Minute")
+        self.assertEqual(_minutes_phrase(0), "1 Minute")
+
+
+class TestRedoBoundaries(unittest.TestCase):
+    """`redo` used to re-run every later stage including the ones that reach
+    outside the machine, so `redo package` failed on missing credentials even
+    though a bare `run` would have stopped before them."""
+
+    def _cli_tail(self, stage):
+        from pipeline.models import STAGES
+        from pipeline.runner import OPTIONAL_STAGES
+        return [s for s in STAGES[STAGES.index(stage):]
+                if s not in OPTIONAL_STAGES or s == stage]
+
+    def test_redo_stops_where_run_stops(self):
+        tail = self._cli_tail("package")
+        self.assertEqual(tail, ["package", "preflight"])
+        self.assertNotIn("review", tail)
+        self.assertNotIn("publish", tail)
+        self.assertNotIn("shorts", tail)
+
+    def test_naming_an_optional_stage_still_runs_it(self):
+        self.assertIn("review", self._cli_tail("review"))
+        self.assertIn("publish", self._cli_tail("publish"))
+
+    def test_a_telegram_redo_sends_the_new_cut_back(self):
+        from pipeline.models import STAGES
+        from pipeline.runner import OPTIONAL_STAGES
+        tail = [s for s in STAGES[STAGES.index("visuals"):]
+                if s not in OPTIONAL_STAGES]
+        tail.append("review")
+        self.assertEqual(tail[-1], "review")
+        self.assertNotIn("publish", tail)   # never republish on a redo
+        self.assertIn("assemble", tail)

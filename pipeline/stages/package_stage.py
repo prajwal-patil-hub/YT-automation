@@ -23,6 +23,12 @@ def _chapters(script) -> list[tuple[str, float]]:
     return out
 
 
+def _minutes_phrase(seconds: float) -> str:
+    """"1 Minute", not "1 Minutes" — this ends up on a live YouTube title."""
+    minutes = max(1, round(seconds / 60))
+    return f"{minutes} Minute" if minutes == 1 else f"{minutes} Minutes"
+
+
 def _timestamp(seconds: float) -> str:
     m, s = divmod(int(seconds), 60)
     h, m = divmod(m, 60)
@@ -70,7 +76,7 @@ def run(ctx) -> None:
         "title": script.title,
         "title_variants": [
             script.title,
-            f"{script.title} (In {max(1, round(script.total_duration / 60))} Minutes)",
+            f"{script.title} (In {_minutes_phrase(script.total_duration)})",
             f"{script.title} — Explained Properly",
         ],
         "description": "\n".join(lines).strip(),

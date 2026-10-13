@@ -75,7 +75,12 @@ def rerun_from(channel: str, job_id: int, stage: str, *, quiet: bool = False) ->
     from .runner import run_job
 
     cfg = channels_mod.load(channel)
-    tail = STAGES[STAGES.index(stage):]
+    # Re-render, then send the new cut straight back for review — that is the
+    # whole point of tapping a redo button. Publishing and Shorts stay manual.
+    from .runner import OPTIONAL_STAGES
+    tail = [s for s in STAGES[STAGES.index(stage):]
+            if s not in OPTIONAL_STAGES]
+    tail.append("review")
     with Store(cfg.db_path) as store:
         store.reset_stages(job_id, tail)
         run_job(cfg, store, job_id, stages=tail, force=True, quiet=quiet)

@@ -63,7 +63,11 @@ def cmd_redo(args, cfg) -> int:
     if args.stage not in STAGES:
         print(f"Unknown stage '{args.stage}'. One of: {', '.join(STAGES)}", file=sys.stderr)
         return 2
-    tail = STAGES[STAGES.index(args.stage):]
+    # Same boundary as a bare `run`: stop before the stages that reach outside
+    # the machine, unless the user explicitly named one of them.
+    from .runner import OPTIONAL_STAGES
+    tail = [s for s in STAGES[STAGES.index(args.stage):]
+            if s not in OPTIONAL_STAGES or s == args.stage]
     with _store(cfg) as store:
         store.reset_stages(args.job_id, tail)
         ctx = run_job(cfg, store, args.job_id, stages=tail, force=True,
