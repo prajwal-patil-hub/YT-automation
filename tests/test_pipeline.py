@@ -756,3 +756,55 @@ class TestRedoBoundaries(unittest.TestCase):
         self.assertEqual(tail[-1], "review")
         self.assertNotIn("publish", tail)   # never republish on a redo
         self.assertIn("assemble", tail)
+
+
+class TestTerminalApproval(unittest.TestCase):
+    """Reviewing on the laptop must be a first-class path, not a bypass.
+    Before this, the only way to approve without Telegram was
+    `publish --force-unapproved`, which records a forced decision."""
+
+    def _job(self, d):
+        store = Store(Path(d) / "t.sqlite3")
+        return store, store.create_job("t", channel="alpha")
+
+    def test_approval_is_recorded_as_a_real_decision(self):
+        with tempfile.TemporaryDirectory() as d:
+            store, job = self._job(d)
+            store.set_approval(job, "video", "approved", decision="approve",
+                               notes="decided at the terminal")
+            row = store.get_approval(job, "video")
+            self.assertEqual(row["state"], "approved")
+            self.assertEqual(row["decision"], "approve")
+            self.assertIsNone(row["message_id"])   # no Telegram message behind it
+            self.assertIsNotNone(row["decided_at"])
+            store.close()
+
+    def test_source_is_distinguishable_from_a_telegram_decision(self):
+        """`show` reports where a decision came from, so an audit of what was
+        approved can tell a tap on a phone from a command at a desk."""
+        with tempfile.TemporaryDirectory() as d:
+            store, job = self._job(d)
+            store.set_approval(job, "video", "approved", decision="approve",
+                               notes="decided at the terminal")
+            self.assertIsNone(store.get_approval(job, "video")["message_id"])
+
+            other = store.create_job("t2", channel="alpha")
+            store.set_approval(other, "video", "pending", message_id=777)
+            store.set_approval(other, "video", "approved", decision="approve")
+            self.assertEqual(store.get_approval(other, "video")["message_id"], 777)
+            store.close()
+
+    def test_scheduling_is_carried_through(self):
+        with tempfile.TemporaryDirectory() as d:
+            store, job = self._job(d)
+            store.set_approval(job, "video", "approved", decision="schedule")
+            self.assertEqual(store.get_approval(job, "video")["decision"], "schedule")
+            store.close()
+
+    def test_rejection_keeps_the_job(self):
+        with tempfile.TemporaryDirectory() as d:
+            store, job = self._job(d)
+            store.set_approval(job, "video", "rejected", decision="reject")
+            self.assertEqual(store.get_approval(job, "video")["state"], "rejected")
+            self.assertIsNotNone(store.get_job(job))   # nothing deleted
+            store.close()

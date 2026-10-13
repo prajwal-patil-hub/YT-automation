@@ -144,6 +144,20 @@ Three properties worth knowing:
   provenance, so `altered_or_synthetic_content` is a SQL query over the
   manifest rather than something a human has to set.
 
+## Reviewing on this machine, or on your phone
+
+The render is already local, so Telegram is for reviewing **away from the desk**,
+not a required step. Either path reaches the same place.
+
+```bash
+./run.sh --channel <c> open 1        # play the master here (--proxy for the small copy)
+./run.sh --channel <c> approve 1     # or: reject 1
+./run.sh --channel <c> publish 1
+```
+
+`show` reports where a decision came from, so an audit of what was approved can
+tell a tap on a phone from a command at a desk.
+
 ## The review gate and publishing
 
 The pipeline is end to end. `run` stops after `preflight`; the last two stages

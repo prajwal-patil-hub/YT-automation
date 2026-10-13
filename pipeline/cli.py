@@ -99,6 +99,14 @@ def cmd_show(args, cfg) -> int:
             if row and row["error"]:
                 print(f"      {row['error'].splitlines()[0]}")
 
+        approval = store.get_approval(args.job_id, "video")
+        if approval:
+            where = "telegram" if approval["message_id"] else "terminal"
+            decided = f" ({approval['decision']} via {where})" if approval["decision"] else ""
+            print(f"\n  review: {approval['state']}{decided}")
+        else:
+            print("\n  review: not requested")
+
         assets = store.assets_for(args.job_id)
         gen = sum(1 for a in assets if a["generated"])
         print(f"\n  assets: {len(assets)} ({gen} generated)")
@@ -180,6 +188,80 @@ def cmd_styles(args, cfg) -> int:
         print(f"      pacing   beat gap {st['voice'].get('beat_gap')}s"
               f"  · accent {st['theme'].get('accent')}")
     return 0
+
+
+def _open_in_player(path: Path) -> str | None:
+    """Hand a file to the desktop's default player. Returns an error, or None."""
+    import platform, subprocess
+    system = platform.system()
+    opener = {"Darwin": ["open"], "Windows": ["cmd", "/c", "start", ""]}.get(
+        system, ["xdg-open"])
+    try:
+        subprocess.Popen([*opener, str(path)],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return None
+    except (OSError, FileNotFoundError) as exc:
+        return str(exc)
+
+
+def cmd_open(args, cfg) -> int:
+    """Watch a finished job on this machine.
+
+    The render is already local — Telegram only exists for reviewing away from
+    the desk — so this is just the path plus a nudge to the default player.
+    """
+    job_dir = cfg.job_dir(args.job_id)
+    target = job_dir / ("review-proxy.mp4" if args.proxy else "master.mp4")
+    if not target.exists():
+        print(f"No {target.name} for job {args.job_id}. Has it rendered yet?",
+              file=sys.stderr)
+        print(f"  looked in {job_dir}", file=sys.stderr)
+        return 1
+
+    print(f"{target}")
+    print(f"  {target.stat().st_size / 1e6:.1f} MB")
+    thumbs = sorted((job_dir / "thumbnails").glob("*.png"))
+    if thumbs:
+        print(f"  thumbnails: {', '.join(t.name for t in thumbs)}  in {job_dir / 'thumbnails'}")
+    if not args.no_play:
+        err = _open_in_player(target)
+        if err:
+            print(f"\n(could not launch a player: {err} — open the path above yourself)")
+    return 0
+
+
+def _record_decision(cfg, job_id: int, state: str, decision: str, note: str | None) -> int:
+    with _store(cfg) as store:
+        job = store.get_job(job_id)
+        if job is None:
+            print(f"No job {job_id}", file=sys.stderr)
+            return 1
+        existing = store.get_approval(job_id, "video")
+        if existing and existing["state"] == state:
+            print(f"job {job_id} is already {state}")
+            return 0
+        store.set_approval(job_id, "video", state, decision=decision,
+                           notes=note or "decided at the terminal")
+        store.update_job(job_id, status=state)
+        store.log(job_id, "info", f"review: {decision} from the CLI", "review")
+        print(f"job {job_id} {state}  ({job['title'] or job['topic']})")
+    return 0
+
+
+def cmd_approve(args, cfg) -> int:
+    """Approve from this machine, without going through Telegram."""
+    decision = "schedule" if args.schedule else "approve"
+    rc = _record_decision(cfg, args.job_id, "approved", decision, args.note)
+    if rc == 0:
+        print(f"  next: ./run.sh --channel {cfg.channel_slug} publish {args.job_id}")
+    return rc
+
+
+def cmd_reject(args, cfg) -> int:
+    rc = _record_decision(cfg, args.job_id, "rejected", "reject", args.note)
+    if rc == 0:
+        print("  nothing was deleted — the job folder is still there")
+    return rc
 
 
 def cmd_review(args, cfg) -> int:
@@ -417,6 +499,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     st = sub.add_parser("styles", help="list visual styles")
     st.set_defaults(func=cmd_styles, needs_config=False)
+
+    op = sub.add_parser("open", help="watch a finished job on this machine")
+    op.add_argument("job_id", type=int)
+    op.add_argument("--proxy", action="store_true", help="the small 720p copy")
+    op.add_argument("--no-play", action="store_true", help="print the path only")
+    op.set_defaults(func=cmd_open)
+
+    ap2 = sub.add_parser("approve", help="approve from this machine (no Telegram)")
+    ap2.add_argument("job_id", type=int)
+    ap2.add_argument("--schedule", action="store_true",
+                     help="approve for scheduling rather than immediate publish")
+    ap2.add_argument("--note")
+    ap2.set_defaults(func=cmd_approve)
+
+    rj = sub.add_parser("reject", help="reject from this machine")
+    rj.add_argument("job_id", type=int)
+    rj.add_argument("--note")
+    rj.set_defaults(func=cmd_reject)
 
     rv = sub.add_parser("review", help="send a finished job for approval")
     rv.add_argument("job_id", type=int)
